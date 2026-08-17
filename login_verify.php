@@ -35,12 +35,32 @@
 		exit;
 	}
 
-	$query = "SELECT userid, username, email, fullname FROM users 
-			  WHERE (username = '{$username}' OR email = '{$username}') 
-			  AND password = '{$passwordUserHash}'
-			  AND is_active = 1";
+	$userQuery = "SELECT userid, username, email, fullname, password, is_active FROM users WHERE username = '{$username}' OR email = '{$username}' LIMIT 1";
+	$userResult = mysqli_query($conn, $userQuery);
 
-	$result = mysqli_query($conn, $query);
+	if(!$userResult){
+	$_SESSION['err_login'] = "Lỗi cơ sở dữ liệu: " . mysqli_error($conn);
+	$_SESSION['auth_tab'] = "login";
+	header("Location: auth.php");
+	exit;
+	}
+
+	$user_data = mysqli_fetch_assoc($userResult);
+	if(!$user_data || $user_data['password'] !== $passwordUserHash){
+	$_SESSION['err_login'] = "Tên đăng nhập/Email hoặc mật khẩu không chính xác!";
+	$_SESSION['auth_tab'] = "login";
+	header("Location: auth.php");
+	exit;
+	}
+
+	if((int)$user_data['is_active'] !== 1){
+	$_SESSION['err_login'] = "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên để được kích hoạt lại.";
+	$_SESSION['auth_tab'] = "login";
+	header("Location: auth.php");
+	exit;
+	}
+
+	$result = $userResult;
 
 	if(!$result){
 		$_SESSION['err_login'] = "Lỗi cơ sở dữ liệu: " . mysqli_error($conn);
@@ -48,15 +68,6 @@
 		header("Location: auth.php");
 		exit;
 	}
-
-	if($result->num_rows <= 0){
-		$_SESSION['err_login'] = "Tên đăng nhập/Email hoặc mật khẩu không chính xác!";
-		$_SESSION['auth_tab'] = "login";
-		header("Location: auth.php");
-		exit;
-	}
-
-	$user_data = mysqli_fetch_assoc($result);
 
 	if(isset($conn)) {mysqli_close($conn);}
 

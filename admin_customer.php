@@ -4,25 +4,46 @@
 	session_start();
 	require_once "./functions/admin.php";
 	$title = "Quản Lý Tài Khoản Khách Hàng";
-	require_once "./template/header.php";
 	require_once "./functions/database_functions.php";
 	$conn = db_connect();
 
-	if(isset($_GET['toggle']) && !empty($_GET['toggle'])){
-		$userid = intval($_GET['toggle']);
-		$status = isset($_GET['status']) ? intval($_GET['status']) : 1;
-		$newStatus = $status == 1 ? 0 : 1;
-		$query = "UPDATE users SET is_active = '{$newStatus}' WHERE userid = '{$userid}'";
-		$result = mysqli_query($conn, $query);
-		if($result){
-			$_SESSION['customer_success'] = $newStatus == 1 ? "Tài khoản đã được kích hoạt lại." : "Tài khoản đã bị vô hiệu hóa.";
-		} else {
-			$_SESSION['customer_success'] = "Không thể cập nhật trạng thái tài khoản.";
-		}
+	if(isset($_GET['toggle']) && (int)$_GET['toggle'] > 0){
+	$userid = (int)$_GET['toggle'];
+	$currentStmt = mysqli_prepare($conn, "SELECT is_active FROM users WHERE userid = ? LIMIT 1");
+	mysqli_stmt_bind_param($currentStmt, 'i', $userid);
+	mysqli_stmt_execute($currentStmt);
+	$currentResult = mysqli_stmt_get_result($currentStmt);
+	$currentUser = $currentResult ? mysqli_fetch_assoc($currentResult) : null;
+	if (!$currentUser) {
+	$_SESSION['customer_error'] = "Không tìm thấy tài khoản cần cập nhật.";
+	} else {
+	$newStatus = ((int)$currentUser['is_active'] === 1) ? 0 : 1;
+	$stmt = mysqli_prepare($conn, "UPDATE users SET is_active = ? WHERE userid = ?");
+	mysqli_stmt_bind_param($stmt, 'ii', $newStatus, $userid);
+	if(mysqli_stmt_execute($stmt)){
+	$_SESSION['customer_success'] = $newStatus === 1 ? "Tài khoản đã được kích hoạt." : "Tài khoản đã bị vô hiệu hóa. Người dùng sẽ không thể đăng nhập.";
+	} else {
+	$_SESSION['customer_error'] = "Không thể cập nhật trạng thái tài khoản: " . mysqli_error($conn);
+	}
+	}
+	header("Location: admin_customer.php");
+	exit();
+	}
+
+	if(isset($_GET['delete']) && (int)$_GET['delete'] > 0){
+	$userid = (int)$_GET['delete'];
+	$stmt = mysqli_prepare($conn, "DELETE FROM users WHERE userid = ?");
+	mysqli_stmt_bind_param($stmt, 'i', $userid);
+	if(mysqli_stmt_execute($stmt) && mysqli_stmt_affected_rows($stmt) === 1){
+	$_SESSION['customer_success'] = "Đã xóa người dùng thành công.";
+	} else {
+	$_SESSION['customer_error'] = "Không thể xóa người dùng. Người dùng có thể đang liên kết với dữ liệu khác.";
+	}
 		header("Location: admin_customer.php");
 		exit();
 	}
 
+	require_once "./template/header.php";
 	$customerResult = mysqli_query($conn, "SELECT userid, email, username, fullname, phone, created_at, is_active FROM users ORDER BY userid DESC");
 	$customerCount = mysqli_num_rows($customerResult);
 ?>
@@ -36,16 +57,20 @@
 	<main class="modern-books-main modern-users-main">
 	<header class="modern-books-header customer-header">
 	<div><span class="customer-eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1><i class="fas fa-users"></i> Quản Lý Tài Khoản Khách Hàng</h1></div>
-	<div class="customer-admin"><span class="customer-avatar"><i class="fas fa-user-shield"></i></span><span>Quản trị viên</span><a href="admin_signout.php" title="Đăng xuất"><i class="fas fa-sign-out-alt"></i></a></div>
+
 	</header>
-	<div class="customer-toolbar"><div class="customer-search"><i class="fas fa-search"></i><input id="customerSearch" type="search" placeholder="Tìm theo tên, email hoặc số điện thoại..." aria-label="Tìm khách hàng"></div><select id="customerStatus" class="customer-filter" aria-label="Lọc trạng thái"><option value="">Tất cả trạng thái</option><option value="active">Hoạt động</option><option value="inactive">Vô hiệu hóa</option></select><select id="customerSort" class="customer-filter" aria-label="Sắp xếp"><option value="newest">Mới nhất</option><option value="oldest">Cũ nhất</option><option value="name">Tên A–Z</option></select><a href="admin_add.php" class="btn customer-add"><i class="fas fa-plus"></i> Thêm mới</a></div>
+	<div class="customer-toolbar"><div class="customer-search"><i class="fas fa-search"></i><input id="customerSearch" type="search" placeholder="Tìm theo tên, email hoặc số điện thoại..." aria-label="Tìm khách hàng"></div><select id="customerStatus" class="customer-filter" aria-label="Lọc trạng thái"><option value="">Tất cả trạng thái</option><option value="active">Hoạt động</option><option value="inactive">Vô hiệu hóa</option></select><select id="customerSort" class="customer-filter" aria-label="Sắp xếp"><option value="newest">Mới nhất</option><option value="oldest">Cũ nhất</option><option value="name">Tên A–Z</option></select><a href="admin_customer_add.php" class="btn customer-add"><i class="fas fa-plus"></i> Thêm khách hàng</a></div>
 
 
-			<?php if(isset($_SESSION['customer_success'])): ?>
-				<div class="alert alert-success" style="border-left: 4px solid #38ef7d; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); animation: slideInAlert 0.3s ease-out;">
-					<i class="fas fa-check-circle"></i> <?= $_SESSION['customer_success'] ?>
-				</div>
-				<?php unset($_SESSION['customer_success']); ?>
+				<?php if(isset($_SESSION['customer_success'])): ?>
+			<div class="alert alert-success" style="border-left: 4px solid #38ef7d; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); animation: slideInAlert 0.3s ease-out;">
+			<i class="fas fa-check-circle"></i> <?= htmlspecialchars($_SESSION['customer_success']) ?>
+			</div>
+			<?php unset($_SESSION['customer_success']); ?>
+			<?php endif; ?>
+			<?php if(isset($_SESSION['customer_error'])): ?>
+			<div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?= htmlspecialchars($_SESSION['customer_error']) ?></div>
+			<?php unset($_SESSION['customer_error']); ?>
 			<?php endif; ?>
 
 				<div class="customer-card">
@@ -86,13 +111,14 @@
 											<?php endif; ?>
 										</td>
 										<td style="padding: 1rem; vertical-align: middle; text-align: center;">
-											<a href="admin_customer.php?toggle=<?= $row['userid'] ?>&status=<?= $row['is_active'] ?>" class="btn btn-sm <?= $row['is_active'] == 1 ? 'btn-outline-danger' : 'btn-outline-success' ?>" style="border-radius: 8px; font-weight: 600;">
-												<?php if($row['is_active'] == 1): ?>
-													<i class="fas fa-user-slash"></i> Vô Hiệu Hóa
-												<?php else: ?>
-													<i class="fas fa-user-check"></i> Kích Hoạt
-												<?php endif; ?>
+												<a href="admin_customer.php?toggle=<?= (int)$row['userid'] ?>&status=<?= (int)$row['is_active'] ?>" class="btn btn-sm <?= $row['is_active'] == 1 ? 'btn-outline-danger' : 'btn-outline-success' ?>" style="border-radius: 8px; font-weight: 600;">
+											<?php if($row['is_active'] == 1): ?>
+											<i class="fas fa-user-slash"></i> Vô hiệu hóa
+											<?php else: ?>
+											<i class="fas fa-user-check"></i> Kích hoạt
+											<?php endif; ?>
 											</a>
+
 										</td>
 									</tr>
 								<?php } ?>
@@ -105,15 +131,15 @@
 						</div>
 					<?php endif; ?>
 							</div>
-						<nav class="customer-pagination" id="customerPagination" aria-label="Phân trang"></nav>
+
 						</div>
 						</div>
 						</div>
 
 <script>
 (function(){
-  const search=document.getElementById('customerSearch'),status=document.getElementById('customerStatus'),sort=document.getElementById('customerSort'),body=document.querySelector('.customer-card tbody'),pagination=document.getElementById('customerPagination');
-  if(!search||!status||!sort||!body||!pagination)return;
+  const search=document.getElementById('customerSearch'),status=document.getElementById('customerStatus'),sort=document.getElementById('customerSort'),body=document.querySelector('.customer-card tbody');
+  if(!search||!status||!sort||!body)return;
   const pageSize=10; let page=1;
   function render(){
     const term=search.value.toLowerCase().trim(),selected=status.value;
@@ -122,10 +148,7 @@
     const pages=Math.max(1,Math.ceil(rows.length/pageSize)); page=Math.min(page,pages);
     document.querySelectorAll('.customer-row').forEach(row=>row.style.display='none');
     rows.slice((page-1)*pageSize,page*pageSize).forEach(row=>row.style.display='');
-    pagination.innerHTML='';
-    const prev=document.createElement('button');prev.type='button';prev.textContent='Trước';prev.disabled=page===1;prev.onclick=()=>{page--;render()};pagination.appendChild(prev);
-    for(let i=1;i<=pages;i++){const button=document.createElement('button');button.type='button';button.textContent=i;button.className=i===page?'active':'';button.onclick=()=>{page=i;render()};pagination.appendChild(button)}
-    const next=document.createElement('button');next.type='button';next.textContent='Sau';next.disabled=page===pages;next.onclick=()=>{page++;render()};pagination.appendChild(next);
+    rows.slice((page-1)*pageSize,page*pageSize).forEach(row=>row.style.display='');
   }
   [search,status,sort].forEach(control=>control.addEventListener('input',()=>{page=1;render()}));
   render();

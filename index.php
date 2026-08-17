@@ -26,7 +26,7 @@
 <?php
   $heroSlides = [];
   if (!empty($row)) {
-    foreach (array_slice($row, 0, 4) as $index => $book) {
+    foreach (array_slice($row, 0, 10) as $index => $book) {
       if (empty($book) || !isset($book['book_image'])) continue;
       $heroSlides[] = [
         'title' => $index === 0 ? 'Hành Trình Qua Những Trang Vô Tận' : 'Khám Phá Những Cuốn Sách Mới',
@@ -55,7 +55,7 @@
 <div class="hero-banner">
   <div class="hero-slider" aria-label="Banner quảng cáo sách">
     <?php foreach ($heroSlides as $index => $slide): ?>
-      <div class="hero-slide <?php echo $index === 0 ? 'active' : ''; ?>">
+      <div class="hero-slide hero-theme-<?php echo $index % 5; ?> <?php echo $index === 0 ? 'active' : ''; ?>">
         <div class="hero-content">
           <h1 class="hero-title"><?php echo htmlspecialchars($slide['title']); ?></h1>
           <p class="hero-subtitle"><?php echo htmlspecialchars($slide['subtitle']); ?></p>
@@ -107,7 +107,7 @@
       clearInterval(autoPlayTimer);
       autoPlayTimer = setInterval(() => {
         showSlide(currentSlide + 1);
-      }, 5000);
+      }, 2000);
     }
 
     dots.forEach((dot) => {
@@ -181,8 +181,7 @@
         <p class="section-subtitle">Khám Phá Các Cuốn Sách Best Seller: Tìm Kiếm Những Mục Hàng Nóng Nhất Của Bộ Sưu Tập.</p>
 
         <div class="row">
-          <?php foreach($row as $book) {
-            if($book === null) continue;
+          <?php foreach(array_slice(array_filter($row), 0, 8) as $book) {
           ?>
             <div class="col-lg-3 col-md-4 col-sm-6 col-xs-12 py-3 mb-4">
               <a href="book.php?bookisbn=<?php echo $book['book_isbn']; ?>" class="book-card text-reset text-decoration-none">
@@ -213,7 +212,7 @@
   /* Hero Banner */
   .hero-banner {
     margin: -15px 0 60px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    background: #172033;
     color: white;
     overflow: hidden;
     border-radius: 0 0 18px 18px;
@@ -248,6 +247,12 @@
     visibility: visible;
     transform: translateX(0);
   }
+
+  .hero-slide.hero-theme-0 { background: linear-gradient(135deg, #172033 0%, #284b63 100%); }
+  .hero-slide.hero-theme-1 { background: linear-gradient(135deg, #3b1f4a 0%, #713f72 100%); }
+  .hero-slide.hero-theme-2 { background: linear-gradient(135deg, #123b3a 0%, #1f766e 100%); }
+  .hero-slide.hero-theme-3 { background: linear-gradient(135deg, #633b1d 0%, #ad6a32 100%); }
+  .hero-slide.hero-theme-4 { background: linear-gradient(135deg, #26345f 0%, #4667a8 100%); }
 
   .hero-content {
     flex: 1;

@@ -93,7 +93,7 @@
 		    echo "Can't retrieve data " . mysqli_error($conn);
 		    exit;
 		}
-		for($i = 0; $i < 4; $i++){
+		for($i = 0; $i < 10; $i++){
 			array_push($row, mysqli_fetch_assoc($result));
 		}
 		return $row;

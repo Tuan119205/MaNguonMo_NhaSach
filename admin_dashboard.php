@@ -75,7 +75,7 @@ require './template/header.php';
       <div><span class="eyebrow">TỔNG QUAN HỆ THỐNG</span>
         <h1>Dashboard</h1>
       </div>
-      <div class="admin-header-tools"><div class="admin-user"><span class="avatar"><i class="fa fa-user-shield"></i></span><span>Quản trị viên</span><i class="fa fa-chevron-down admin-user-chevron"></i></div></div>
+      <div class="admin-header-tools"></div>
     </div>
     <section class="stat-grid">
       <div class="stat-card revenue"><span class="stat-icon"><i class="fa fa-wallet"></i></span>

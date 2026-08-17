@@ -87,7 +87,7 @@
 	<a class="modern-logout" href="admin_signout.php"><i class="fas fa-sign-out-alt"></i>Đăng xuất</a>
 	</aside>
 	<main class="modern-books-main">
-	<header class="modern-books-header"><div><span class="modern-eyebrow">KHO SÁCH</span><h1>Quản lý sách</h1><p>Quản lý toàn bộ sách trong hệ thống</p></div><div class="modern-admin-account"><span class="modern-avatar"><i class="fas fa-user-shield"></i></span><span>Quản trị viên</span></div></header>
+	<header class="modern-books-header"><div><span class="modern-eyebrow">KHO SÁCH</span><h1>Quản lý sách</h1><p>Quản lý toàn bộ sách trong hệ thống</p></div></header>
 	<?php if(isset($_SESSION['book_success'])): ?><div class="modern-alert success"><i class="fas fa-check-circle"></i><?= htmlspecialchars($_SESSION['book_success']) ?></div><?php unset($_SESSION['book_success']); endif; ?>
 	<?php if(!empty($err)): ?><div class="modern-alert danger"><i class="fas fa-exclamation-circle"></i><?= htmlspecialchars($err) ?></div><?php endif; ?>
 	<section class="modern-books-title"><div><h2>Danh sách</h2><p><?= mysqli_num_rows($modernResult) ?> đầu sách đang được quản lý</p></div><a class="modern-primary-btn" href="admin_add.php"><i class="fas fa-plus"></i> Thêm sách</a></section>

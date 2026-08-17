@@ -61,7 +61,7 @@
 		exit;
 	}
 
-	$query = "INSERT INTO users (email, username, password, fullname, phone) 
+	$query = "INSERT INTO users (email, username, password, fullname, phone)
 			  VALUES ('{$email}', '{$username}', '{$passwordHash}', '{$fullname}', '{$phone}')";
 
 	$result = mysqli_query($conn, $query);
@@ -76,6 +76,6 @@
 	if(isset($conn)) {mysqli_close($conn);}
 
 	$_SESSION['success_register'] = "Đăng ký thành công! Vui lòng đăng nhập với thông tin đăng ký của bạn.";
-	$_SESSION['auth_tab'] = "register";
+	$_SESSION['auth_tab'] = "login";
 	header("Location: auth.php");
 ?>
