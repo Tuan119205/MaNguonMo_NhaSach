@@ -92,6 +92,38 @@
       mysqli_query($conn, $createTableQuery);
     }
 
-    if(isset($conn)) { mysqli_close($conn); }
-  }
+    // Migration 7: Add inventory column to books for stock management
+    $checkInventoryQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='books' AND COLUMN_NAME='inventory'";
+    $inventoryResult = mysqli_query($conn, $checkInventoryQuery);
+      if (!$inventoryResult || mysqli_num_rows($inventoryResult) === 0) {
+        mysqli_query($conn, "ALTER TABLE books ADD COLUMN inventory INT UNSIGNED NOT NULL DEFAULT 0 AFTER book_price");
+      }
+
+      // Migration 8: Create the promotions table for admin-managed vouchers
+      $createPromotionsTable = "CREATE TABLE IF NOT EXISTS promotions (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        code VARCHAR(50) NOT NULL,
+        name VARCHAR(120) NOT NULL,
+        type ENUM('percent','fixed','shipping','special') NOT NULL DEFAULT 'percent',
+        value DECIMAL(12,2) NOT NULL DEFAULT 0,
+        min_order DECIMAL(12,2) NOT NULL DEFAULT 0,
+        expires_at DATE NOT NULL,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), UNIQUE KEY uq_promotions_code (code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+      mysqli_query($conn, $createPromotionsTable);
+
+      $promotionCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM promotions");
+      if ($promotionCountResult && (int)mysqli_fetch_assoc($promotionCountResult)['total'] === 0) {
+        mysqli_query($conn, "INSERT INTO promotions (code,name,type,value,min_order,expires_at,active) VALUES
+          ('SAVE10','Giảm 10%','percent',10,0,'2026-12-31',1),
+          ('SAVE20','Giảm 20% đơn từ 500.000đ','percent',20,500000,'2026-12-31',1),
+          ('FIRST50','Giảm 50.000đ cho khách hàng mới','fixed',50000,0,'2026-10-31',1),
+          ('FREESHIP','Miễn phí vận chuyển','shipping',0,0,'2026-09-30',1),
+          ('WEEKEND','Ưu đãi cuối tuần','percent',15,50000,'2026-12-30',1)");
+      }
+
+    }
 ?>

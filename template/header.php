@@ -72,7 +72,7 @@
       $isAuthPage = ($currentPage === 'auth.php');
       // Chỉ các trang quản trị mới ẩn menu người dùng. Không dựa vào session admin,
       // để admin vẫn nhìn thấy giao diện người dùng khi quay về trang chủ.
-      $adminPages = ['admin.php', 'admin_dashboard.php', 'admin_book.php', 'admin_customer.php', 'admin_add.php', 'admin_edit.php', 'admin_delete.php', 'admin_verify.php'];
+      $adminPages = ['admin.php', 'admin_dashboard.php', 'admin_book.php', 'admin_customer.php', 'admin_customer_add.php', 'admin_add.php', 'admin_promotions.php', 'admin_reports.php', 'admin_edit.php', 'admin_delete.php', 'admin_verify.php'];
       // orders.php dùng chung cho người dùng và Admin: chỉ ẩn navbar khi Admin thật sự ở trang này.
       $isAdminPage = in_array($currentPage, $adminPages, true) || ($currentPage === 'orders.php' && isset($_SESSION['admin']) && $_SESSION['admin'] === true);
     ?>

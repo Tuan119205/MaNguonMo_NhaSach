@@ -48,6 +48,15 @@
 		function calculate_voucher_discount($code, $subtotal, $cart = array()){
 		$code = strtoupper(trim((string)$code));
 		$vouchers = available_vouchers();
+	if (function_exists('db_connect')) {
+	$promoConn = db_connect();
+	$promoCode = mysqli_real_escape_string($promoConn, $code);
+	$promoResult = mysqli_query($promoConn, "SELECT type, value, min_order, expires_at FROM promotions WHERE code = '{$promoCode}' AND active = 1 AND expires_at >= CURDATE() LIMIT 1");
+	if ($promoResult && ($promoRow = mysqli_fetch_assoc($promoResult))) {
+	$vouchers[$code] = array('type' => $promoRow['type'], 'value' => (float)$promoRow['value'], 'min_order' => (float)$promoRow['min_order'], 'max_discount' => 0);
+	}
+	mysqli_close($promoConn);
+	}
 		if(!isset($vouchers[$code])){
 		return array('valid' => false, 'message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn');
 		}

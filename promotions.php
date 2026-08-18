@@ -2,12 +2,33 @@
 session_start();
 require_once "./functions/database_functions.php";
 require_once "./functions/cart_functions.php";
+$conn = db_connect();
 
 $title = "Chương Trình Khuyến Mãi";
+require_once "./db_migration.php";
+runDatabaseMigrations();
 require "./template/header.php";
 
-// Sample promotions data
-$promotions = array(
+// Promotions are managed by Admin and read from the database.
+$promotions = array();
+$promotionResult = mysqli_query($conn, "SELECT * FROM promotions WHERE active = 1 AND expires_at >= CURDATE() ORDER BY id DESC");
+if ($promotionResult) {
+    while ($promotion = mysqli_fetch_assoc($promotionResult)) {
+        $promotions[] = array(
+            'code' => $promotion['code'],
+            'name' => $promotion['name'],
+            'description' => $promotion['min_order'] > 0 ? 'Áp dụng cho đơn hàng từ ' . number_format($promotion['min_order'], 0, ',', '.') . 'đ' : 'Ưu đãi đang được áp dụng trên hệ thống',
+            'discount' => (float)$promotion['value'],
+            'type' => $promotion['type'],
+            'icon' => $promotion['type'] === 'shipping' ? 'fa-truck' : ($promotion['type'] === 'fixed' ? 'fa-money-bill' : 'fa-percent'),
+            'color' => $promotion['type'] === 'fixed' ? 'info' : ($promotion['type'] === 'shipping' ? 'success' : 'primary'),
+            'expiry' => date('d/m/Y', strtotime($promotion['expires_at'])),
+            'badge' => null
+        );
+    }
+}
+/* Legacy fallback is intentionally removed: only active database promotions are shown. */
+/*
     array(
         'code' => 'SAVE10',
         'name' => 'Giảm 10%',
@@ -74,7 +95,7 @@ $promotions = array(
         'expiry' => '30/12/2026',
         'badge' => null
     )
-);
+); */
 ?>
 
 <div class="container promotions-page">

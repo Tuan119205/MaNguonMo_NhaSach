@@ -84,6 +84,9 @@
   // Filter parameters for Admin
   $filterStatus = trim($_GET['status'] ?? '');
   $searchQuery = trim($_GET['q'] ?? '');
+  $adminPage = max(1, intval($_GET['page'] ?? 1));
+  $ordersPerPage = 10;
+  $adminTotalOrders = 0;
 
   // Query orders
   if ($isAdmin) {
@@ -96,7 +99,15 @@
       $whereClauses[] = "(orderid LIKE '%$s%' OR ship_name LIKE '%$s%' OR ship_phone LIKE '%$s%')";
     }
     $whereSql = count($whereClauses) > 0 ? "WHERE " . implode(" AND ", $whereClauses) : "";
-    $ordersQuery = "SELECT * FROM orders $whereSql ORDER BY date DESC, orderid DESC LIMIT 200";
+    $countResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM orders $whereSql");
+    if ($countResult) {
+      $adminTotalRow = mysqli_fetch_assoc($countResult);
+      $adminTotalOrders = (int)($adminTotalRow['total'] ?? 0);
+    }
+    $adminTotalPages = max(1, (int)ceil($adminTotalOrders / $ordersPerPage));
+    $adminPage = min($adminPage, $adminTotalPages);
+    $adminOffset = ($adminPage - 1) * $ordersPerPage;
+    $ordersQuery = "SELECT * FROM orders $whereSql ORDER BY date DESC, orderid DESC LIMIT $ordersPerPage OFFSET $adminOffset";
   } else {
     // Regular customer: strictly filter by their own userid
     $ordersQuery = "SELECT * FROM orders WHERE customerid = '$userid' ORDER BY date DESC, orderid DESC";
@@ -144,7 +155,7 @@
             <i class="fa fa-box me-2"></i><?php echo $isAdmin ? 'Quản Lý Tất Cả Đơn Hàng (Admin)' : 'Danh Sách Đơn Hàng Của Bạn'; ?>
           </h3>
           <span class="badge bg-dark text-white fs-6 fw-normal px-3 py-2 rounded-pill">
-            Tổng cộng: <strong><?php echo count($orders); ?></strong> đơn hàng
+            Tổng cộng: <strong><?php echo $isAdmin ? $adminTotalOrders : count($orders); ?></strong> đơn hàng
           </span>
         </div>
 
@@ -441,18 +452,22 @@
                 <?php endif; ?>
               </div>
             </div>
+            <?php if ($isAdmin && $adminTotalPages > 1): ?>
+              <nav class="orders-pagination mt-3" aria-label="Phân trang đơn hàng">
+                <?php for ($pageNumber = 1; $pageNumber <= $adminTotalPages; $pageNumber++): ?>
+                  <a class="<?php echo $pageNumber === $adminPage ? 'active' : ''; ?>" href="orders.php?page=<?php echo $pageNumber; ?>&status=<?php echo urlencode($filterStatus); ?>&q=<?php echo urlencode($searchQuery); ?>"><?php echo $pageNumber; ?></a>
+                <?php endfor; ?>
+              </nav>
+            <?php endif; ?>
 
           <!-- Bottom Actions -->
-          <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <a href="books.php" class="btn btn-outline-warning text-dark fw-semibold">
-              <i class="fa fa-shopping-bag me-2"></i>Tiếp tục mua sách
+          <?php if (!$isAdmin): ?>
+          <div class="mt-4 d-flex justify-content-end align-items-center flex-wrap gap-2">
+            <a href="profile.php" class="btn btn-outline-secondary">
+              <i class="fa fa-user me-2"></i>Thông tin cá nhân
             </a>
-            <?php if (!$isAdmin): ?>
-              <a href="profile.php" class="btn btn-outline-secondary">
-                <i class="fa fa-user me-2"></i>Thông tin cá nhân
-              </a>
-            <?php endif; ?>
           </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -518,7 +533,7 @@ html,body{margin:0!important;padding:0!important}.admin-orders-shell{font-family
 .orders-empty-state { width: 100%; }
 .order-total-summary { border-top: 1px solid #e5e7eb; }
 .order-total-summary td { padding: 7px 12px; }
-.order-total-summary .total-row td { padding-top: 12px; border-top: 1px solid #f2c94c; }
+.orders-pagination{display:flex;justify-content:center;gap:6px}.orders-pagination a{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 10px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#64748b;text-decoration:none;font-weight:600;font-size:13px}.orders-pagination a:hover,.orders-pagination a.active{background:#f0b90b;border-color:#f0b90b;color:#20242b}
 
 .step-box {
   padding: 12px 6px;

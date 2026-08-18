@@ -130,11 +130,12 @@
 							<h5 style="color: #999;">Chưa có khách hàng nào</h5>
 						</div>
 					<?php endif; ?>
-							</div>
+								</div>
+							<div id="customerPagination" class="customer-pagination" aria-label="Phân trang người dùng"></div>
 
-						</div>
-						</div>
-						</div>
+							</div>
+							</div>
+							</div>
 
 <script>
 (function(){
@@ -148,7 +149,19 @@
     const pages=Math.max(1,Math.ceil(rows.length/pageSize)); page=Math.min(page,pages);
     document.querySelectorAll('.customer-row').forEach(row=>row.style.display='none');
     rows.slice((page-1)*pageSize,page*pageSize).forEach(row=>row.style.display='');
-    rows.slice((page-1)*pageSize,page*pageSize).forEach(row=>row.style.display='');
+    const pagination=document.getElementById('customerPagination');
+    if(pagination){
+      pagination.innerHTML='';
+      if(pages>1){
+        for(let number=1;number<=pages;number++){
+          const button=document.createElement('button');
+          button.type='button'; button.textContent=number;
+          button.className=number===page?'active':'';
+          button.addEventListener('click',()=>{page=number;render();});
+          pagination.appendChild(button);
+        }
+      }
+    }
   }
   [search,status,sort].forEach(control=>control.addEventListener('input',()=>{page=1;render()}));
   render();
@@ -213,6 +226,6 @@ body:has(.modern-users-admin) .site-footer,body:has(.modern-users-admin) .site-f
 </style>
 
 <style>
-.customer-toolbar{flex-wrap:wrap}.customer-filter{height:40px;padding:0 12px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#475569;font-size:13px;outline:0}.customer-filter:focus{border-color:#b17d00;box-shadow:0 0 0 3px rgba(240,185,11,.14)}.customer-pagination button{cursor:pointer}.customer-pagination button:disabled{cursor:not-allowed}
+.customer-toolbar{flex-wrap:wrap}.customer-filter{height:40px;padding:0 12px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#475569;font-size:13px;outline:0}.customer-filter:focus{border-color:#b17d00;box-shadow:0 0 0 3px rgba(240,185,11,.14)}.customer-pagination{display:flex;justify-content:center;gap:6px;padding:18px 0 4px}.customer-pagination button{cursor:pointer;min-width:36px;height:36px;padding:0 10px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#64748b;font-size:13px;font-weight:600}.customer-pagination button:hover,.customer-pagination button.active{background:#f0b90b;border-color:#f0b90b;color:#20242b}.customer-pagination button:disabled{cursor:not-allowed}
 @media(max-width:900px){.customer-filter{flex:1;min-width:150px}}@media(max-width:700px){.customer-filter{width:100%;flex:initial}.customer-toolbar .customer-add{width:100%}}
 </style>

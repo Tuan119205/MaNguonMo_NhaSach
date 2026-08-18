@@ -1,5 +1,6 @@
 <?php
 	session_start();
+	ob_start();
 	require_once "./functions/admin.php";
 	require_once "./functions/admin.php";
 	$title = "Sửa thông tin sách";
@@ -29,7 +30,7 @@
 		$row = mysqli_fetch_assoc($result);
 	}
 	if(isset($_POST['edit'])){
-		$isbn = trim($_POST['isbn']);
+		$book_isbn = trim($_GET['bookisbn']);
 		$basePrice = isset($_POST['book_price']) ? floatval(trim($_POST['book_price'])) : 0;
 		$discountPercent = isset($_POST['discount_percent']) ? floatval(trim($_POST['discount_percent'])) : 0;
 		$discountAmount = isset($_POST['discount_amount']) ? floatval(trim($_POST['discount_amount'])) : 0;
@@ -41,7 +42,7 @@
 			$finalPrice = $finalPrice - $discountAmount;
 		}
 		$_POST['book_price'] = max(0, $finalPrice);
-			$editableFields = ['book_title', 'book_author', 'book_descr', 'book_price', 'genre_id'];
+			$editableFields = ['book_title', 'book_author', 'book_descr', 'book_price', 'inventory', 'genre_id'];
 		$updates = [];
 		foreach ($editableFields as $field) {
 		if (isset($_POST[$field])) {
@@ -84,7 +85,7 @@
 							endif;
 						?>
 						<form method="post" action="admin_edit.php?bookisbn=<?php echo $row['book_isbn'];?>" enctype="multipart/form-data">
-								
+
 								<div class="mb-3">
 									<label class="control-label">Tên sách</label>
 									<input class="form-control rounded-0" type="text" name="book_title" value="<?php echo $row['book_title'];?>" required>
@@ -97,9 +98,13 @@
 									<label class="control-label">Mô tả sách</label>
 									<textarea class="form-control rounded-0" name="book_descr" cols="40" rows="5"><?php echo $row['book_descr'];?></textarea>
 								</div>
-								<div class="mb-3">
-									<label class="control-label">Giá gốc</label>
-									<input id="base_price" class="form-control rounded-0" type="number" min="0" step="1000" name="book_price" value="<?php echo $row['book_price'];?>" required>
+									<div class="mb-3">
+								<label class="control-label">Số lượng tồn kho</label>
+								<input class="form-control rounded-0" type="number" name="inventory" min="0" max="100" step="1" value="<?php echo (int)$row['inventory'];?>" required>
+								</div>
+									<div class="mb-3">
+								<label class="control-label">Giá gốc</label>
+								<input id="base_price" class="form-control rounded-0" type="text" inputmode="numeric" name="book_price" value="<?php echo number_format((float)$row['book_price'], 0, '.', '');?>" required>
 								</div>
 								<div class="row">
 									<div class="col-md-6">
@@ -179,5 +184,6 @@
 </script>
 <?php
 	if(isset($conn)) {mysqli_close($conn);}
+	ob_end_flush();
 	require "./template/footer.php"
 ?>

@@ -1,5 +1,6 @@
 <?php
 	session_start();
+	ob_start();
 	require_once "./functions/admin.php";
 	require_once "./functions/admin.php";
 	$title = "Add new book";
@@ -90,7 +91,7 @@
 							endif;
 						?>
 						<form method="post" action="admin_add.php" enctype="multipart/form-data" class="add-book-form">
-								
+
 								<div class="mb-3">
 									<label class="control-label">Tên sách</label>
 									<input class="form-control rounded-0" type="text" name="title" required>
@@ -112,8 +113,11 @@
 									<label class="control-label">Giá gốc</label>
 									<input id="base_price" class="form-control rounded-0" type="number" min="0" step="1000" name="price" required>
 								</div>
+									<div class="mb-3">
+								<label class="control-label">Số lượng tồn kho</label>
+								<input class="form-control rounded-0" type="number" name="inventory" min="0" max="100" step="1" value="0" required>
+								</div>
 								<div class="row">
-									<div class="col-md-6">
 										<div class="mb-3">
 											<label class="control-label">Khuyến mại (%)</label>
 											<input id="discount_percent" class="form-control rounded-0" type="number" min="0" max="100" step="0.01" name="discount_percent" value="0">
@@ -198,5 +202,6 @@
 </script>
 <?php
 	if(isset($conn)) {mysqli_close($conn);}
+	ob_end_flush();
 	require_once "./template/footer.php";
 ?>

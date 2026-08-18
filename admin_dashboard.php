@@ -60,13 +60,15 @@ require './template/header.php';
 <div class="admin-shell">
   <aside class="admin-sidebar">
     <div class="admin-brand"><span class="brand-mark">VL</span>
-      <div><strong>Việt Long</strong><small>Admin Panel</small></div>
+      <div><strong>Nhà sách Việt Long</strong><small>Quản trị viên</small></div>
     </div>
     <nav class="admin-nav">
       <a class="active" href="admin_dashboard.php"><i class="fa fa-chart-pie"></i>Dashboard</a>
       <a href="admin_customer.php"><i class="fa fa-users"></i>Quản lý người dùng</a>
       <a href="admin_book.php"><i class="fa fa-book"></i>Quản lý sách</a>
       <a href="orders.php"><i class="fa fa-shopping-bag"></i>Quản lý đơn hàng</a>
+      <a href="admin_promotions.php"><i class="fa fa-tags"></i>Quản lý khuyến mãi</a>
+      <a href="admin_reports.php"><i class="fa fa-chart-column"></i>Thống kê và báo cáo</a>
     </nav>
     <a class="admin-logout" href="admin_signout.php"><i class="fa fa-sign-out-alt"></i>Đăng xuất</a>
   </aside>
@@ -91,7 +93,7 @@ require './template/header.php';
         <div><small>Tổng người dùng</small><strong><?= number_format($totalUsers) ?></strong></div>
       </div>
     </section>
-    <section class="admin-grid main-grid">
+    <section class="admin-grid main-grid" id="reports">
       <div class="admin-panel chart-panel">
         <div class="panel-heading">
           <div>

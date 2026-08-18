@@ -67,7 +67,14 @@
 
 	$selectedGenre = isset($_GET['genre']) ? max(0, (int) $_GET['genre']) : 0;
 	$genreFilterSql = $selectedGenre > 0 ? " WHERE genre_id = {$selectedGenre}" : '';
-	$result = mysqli_query($conn, "SELECT * FROM books{$genreFilterSql} ORDER BY book_isbn DESC");
+	$booksPerPage = 10;
+	$bookPage = max(1, (int)($_GET['page'] ?? 1));
+	$totalBooksResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM books{$genreFilterSql}");
+	$totalBooks = $totalBooksResult ? (int)mysqli_fetch_assoc($totalBooksResult)['total'] : 0;
+	$totalBookPages = max(1, (int)ceil($totalBooks / $booksPerPage));
+	$bookPage = min($bookPage, $totalBookPages);
+	$bookOffset = ($bookPage - 1) * $booksPerPage;
+	$result = mysqli_query($conn, "SELECT * FROM books{$genreFilterSql} ORDER BY book_isbn DESC LIMIT {$booksPerPage} OFFSET {$bookOffset}");
 	$customerCount = 0;
 	if(mysqli_num_rows(mysqli_query($conn, "SHOW TABLES LIKE 'users'")) > 0){
 		$customerResult = mysqli_query($conn, "SELECT userid FROM users");
@@ -76,7 +83,7 @@
 		}
 	}
 	ensure_book_inventory_schema($conn);
-	$modernResult = mysqli_query($conn, "SELECT * FROM books{$genreFilterSql} ORDER BY book_isbn DESC");
+	$modernResult = mysqli_query($conn, "SELECT * FROM books{$genreFilterSql} ORDER BY book_isbn DESC LIMIT {$booksPerPage} OFFSET {$bookOffset}");
 	$genreOptions = mysqli_query($conn, "SELECT genre_id, genre_name FROM genres ORDER BY genre_id ASC");
 ?>
 
@@ -90,7 +97,7 @@
 	<header class="modern-books-header"><div><span class="modern-eyebrow">KHO SÁCH</span><h1>Quản lý sách</h1><p>Quản lý toàn bộ sách trong hệ thống</p></div></header>
 	<?php if(isset($_SESSION['book_success'])): ?><div class="modern-alert success"><i class="fas fa-check-circle"></i><?= htmlspecialchars($_SESSION['book_success']) ?></div><?php unset($_SESSION['book_success']); endif; ?>
 	<?php if(!empty($err)): ?><div class="modern-alert danger"><i class="fas fa-exclamation-circle"></i><?= htmlspecialchars($err) ?></div><?php endif; ?>
-	<section class="modern-books-title"><div><h2>Danh sách</h2><p><?= mysqli_num_rows($modernResult) ?> đầu sách đang được quản lý</p></div><a class="modern-primary-btn" href="admin_add.php"><i class="fas fa-plus"></i> Thêm sách</a></section>
+	<section class="modern-books-title"><div><h2>Danh sách</h2><p><?= $totalBooks ?> đầu sách đang được quản lý</p></div><a class="modern-primary-btn" href="admin_add.php"><i class="fas fa-plus"></i> Thêm sách</a></section>
 	<?php $totalStock = 0; foreach ($modernResult as $stockBook) { $totalStock += (int)$stockBook['inventory']; } mysqli_data_seek($modernResult, 0); ?>
 	<section class="modern-stats"><div><span class="modern-stat-icon yellow"><i class="fas fa-books"></i></span><div><strong><?= mysqli_num_rows($modernResult) ?></strong><small>Tổng sách</small></div></div><div><span class="modern-stat-icon green"><i class="fas fa-store"></i></span><div><strong><?= mysqli_num_rows($modernResult) ?></strong><small>Đang bán</small></div></div><div><span class="modern-stat-icon orange"><i class="fas fa-boxes-stacked"></i></span><div><strong><?= number_format($totalStock) ?></strong><small>Tổng tồn kho</small></div></div><div><span class="modern-stat-icon red"><i class="fas fa-box-open"></i></span><div><strong>0</strong><small>Hết hàng</small></div></div></section>
 	<section class="modern-filter"><div class="modern-search"><i class="fas fa-search"></i><input id="bookSearch" type="search" placeholder="Tìm kiếm sách theo tên, mã sách hoặc tác giả..."></div><select id="bookGenre" onchange="window.location.href=this.value"><option value="admin_book.php">Tất cả thể loại</option><?php while($genre = mysqli_fetch_assoc($genreOptions)): ?><option value="admin_book.php?genre=<?= (int)$genre['genre_id'] ?>" <?= $selectedGenre === (int)$genre['genre_id'] ? 'selected' : '' ?>><?= htmlspecialchars($genre['genre_name']) ?></option><?php endwhile; ?></select><select id="bookStatus"><option value="">Tất cả trạng thái</option><option value="available">Đang bán</option><option value="low">Sắp hết</option></select><select id="bookSort"><option value="title">Tên sách A–Z</option><option value="price">Giá cao đến thấp</option></select></section>
@@ -107,7 +114,7 @@
 	<td class="modern-actions"><a href="admin_edit.php?bookisbn=<?= urlencode($book['book_isbn']) ?>" title="Sửa"><i class="fas fa-pen"></i></a><a class="danger-action" href="admin_delete.php?bookisbn=<?= urlencode($book['book_isbn']) ?>" title="Xóa" onclick="return confirm('Bạn chắc chắn muốn xóa sách này?');"><i class="fas fa-trash"></i></a></td>
 	</tr>
 	<?php endwhile; else: ?><tr><td colspan="7" class="modern-empty"><i class="fas fa-book-open"></i><strong>Chưa có sách nào</strong><span>Hãy thêm sách mới để bắt đầu quản lý kho.</span></td></tr><?php endif; ?>
-	</tbody></table></div><div class="modern-table-footer"><span>Hiển thị <?= mysqli_num_rows($modernResult) ?> sách</span><span>Dữ liệu được lấy trực tiếp từ hệ thống</span></div></section>
+	</tbody></table></div><div class="modern-table-footer"><span>Hiển thị <?= mysqli_num_rows($modernResult) ?> sách trên trang <?= $bookPage ?></span><span>Dữ liệu được lấy trực tiếp từ hệ thống</span></div><?php if($totalBookPages > 1): ?><nav class="books-pagination" aria-label="Phân trang sách"><?php for($pageNumber = 1; $pageNumber <= $totalBookPages; $pageNumber++): ?><a class="<?= $pageNumber === $bookPage ? 'active' : '' ?>" href="admin_book.php?page=<?= $pageNumber ?>&genre=<?= $selectedGenre ?>"><?= $pageNumber ?></a><?php endfor; ?></nav><?php endif; ?></section>
 	</main>
 </div>
 <script>
@@ -467,7 +474,7 @@ body:has(.modern-books-admin) .clear-fix,body:has(.modern-books-admin) .site-foo
 </style>
 
 <style>
-.modern-stock.available{background:#e6f7ed;color:#25784c}.modern-stock.low{background:#fff1d9;color:#a55d00}.modern-status.available{background:#e6f7ed;color:#25784c}.modern-status.low{background:#fff1d9;color:#a55d00}
+.modern-stock.available{background:#e6f7ed;color:#25784c}.modern-stock.low{background:#fff1d9;color:#a55d00}.modern-status.available{background:#e6f7ed;color:#25784c}.modern-status.low{background:#fff1d9;color:#a55d00}.books-pagination{display:flex;justify-content:center;gap:6px;padding:18px 0}.books-pagination a{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 10px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#64748b;text-decoration:none;font-weight:600;font-size:13px}.books-pagination a:hover,.books-pagination a.active{background:#f0b90b;border-color:#f0b90b;color:#20242b}
 </style>
 
 <style>
