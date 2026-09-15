@@ -21,18 +21,20 @@
 
 	$username = mysqli_real_escape_string($conn, $username);
 	$passwordPlain = $password;
-	$passwordUserHash = md5($passwordPlain);
-	$passwordAdminHash = sha1($passwordPlain);
 
-	$adminQuery = "SELECT `name` FROM `admin` WHERE `name` = '{$username}' AND `pass` = '{$passwordAdminHash}'";
+	$adminQuery = "SELECT `name`, `pass` FROM `admin` WHERE `name` = '{$username}' LIMIT 1";
 	$adminResult = mysqli_query($conn, $adminQuery);
 
 	if($adminResult && $adminResult->num_rows > 0){
-		if(isset($conn)) {mysqli_close($conn);}
-		$_SESSION['admin'] = true;
+	$adminData = mysqli_fetch_assoc($adminResult);
+	$adminPasswordOk = password_verify($passwordPlain, $adminData['pass']) || hash_equals($adminData['pass'], sha1($passwordPlain));
+	if ($adminPasswordOk) {
+	if(isset($conn)) {mysqli_close($conn);}
+	$_SESSION['admin'] = true;
 		$_SESSION['auth_tab'] = "login";
 		header("Location: admin_book.php");
 		exit;
+	}
 	}
 
 	$userQuery = "SELECT userid, username, email, fullname, password, is_active FROM users WHERE username = '{$username}' OR email = '{$username}' LIMIT 1";
@@ -46,11 +48,21 @@
 	}
 
 	$user_data = mysqli_fetch_assoc($userResult);
-	if(!$user_data || $user_data['password'] !== $passwordUserHash){
+	$userPasswordValid = $user_data && (password_verify($passwordPlain, $user_data['password']) || hash_equals($user_data['password'], md5($passwordPlain)));
+	if(!$userPasswordValid){
 	$_SESSION['err_login'] = "Tên đăng nhập/Email hoặc mật khẩu không chính xác!";
 	$_SESSION['auth_tab'] = "login";
 	header("Location: auth.php");
 	exit;
+	}
+
+	if (hash_equals($user_data['password'], md5($passwordPlain))) {
+	$upgradedHash = password_hash($passwordPlain, PASSWORD_DEFAULT);
+	$upgradeStmt = mysqli_prepare($conn, "UPDATE users SET password = ? WHERE userid = ?");
+	if ($upgradeStmt) {
+	mysqli_stmt_bind_param($upgradeStmt, 'si', $upgradedHash, $user_data['userid']);
+	mysqli_stmt_execute($upgradeStmt);
+	}
 	}
 
 	if((int)$user_data['is_active'] !== 1){

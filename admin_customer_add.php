@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = mysqli_real_escape_string($conn, $email);
     $username = mysqli_real_escape_string($conn, $username);
     $phone = mysqli_real_escape_string($conn, $phone);
-    $passwordHash = md5($password);
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
     $check = mysqli_query($conn, "SELECT userid FROM users WHERE email='{$email}' OR username='{$username}' LIMIT 1");
     if ($check && mysqli_num_rows($check) > 0) {
       $err = 'Email hoặc tên đăng nhập đã tồn tại.';

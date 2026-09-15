@@ -100,7 +100,7 @@
 	}
 
 	function getBookByIsbn($conn, $isbn){
-		$query = "SELECT book_title, book_author, book_price FROM books WHERE book_isbn = '$isbn'";
+		$query = "SELECT book_isbn, book_title, book_author, book_image, book_price FROM books WHERE book_isbn = '$isbn'";
 		$result = mysqli_query($conn, $query);
 		if(!$result){
 			echo "Can't retrieve data " . mysqli_error($conn);

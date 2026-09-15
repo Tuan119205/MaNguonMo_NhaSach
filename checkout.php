@@ -273,12 +273,15 @@
 						<?php
 							foreach($_SESSION['cart'] as $isbn => $qty){
 								$book = mysqli_fetch_assoc(getBookByIsbn($conn, $isbn));
-								$bookImage = !empty($book['book_image']) ? './bootstrap/img/' . $book['book_image'] : './bootstrap/img/default-book.jpg';
+								$bookImage = !empty($book['book_image'])
+	? './bootstrap/img/' . rawurlencode(basename($book['book_image']))
+	: './bootstrap/img/dark-bg.jpg';
 								$itemLineTotal = $qty * $book['book_price'];
 						?>
 						<div class="d-flex align-items-center gap-3 py-2 border-bottom">
-							<img src="<?php echo $bookImage; ?>" alt="<?php echo htmlspecialchars($book['book_title']); ?>"
-								style="width: 50px; height: 65px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; flex-shrink: 0;">
+								<img src="<?php echo htmlspecialchars($bookImage, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($book['book_title']); ?>"
+								onerror="this.onerror=null;this.src='./bootstrap/img/dark-bg.jpg';"
+							style="width: 50px; height: 65px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; flex-shrink: 0;">
 							<div class="flex-grow-1 min-w-0">
 								<h6 class="mb-1 text-truncate fw-semibold text-dark" style="font-size: 0.9rem;" title="<?php echo htmlspecialchars($book['book_title']); ?>">
 									<?php echo htmlspecialchars($book['book_title']); ?>

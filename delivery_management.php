@@ -19,7 +19,7 @@
   // Ensure proper table structure
   $checkTableQuery = "SELECT 1 FROM information_schema.TABLES WHERE TABLE_NAME='user_addresses' AND TABLE_SCHEMA=DATABASE()";
   $tableCheckResult = mysqli_query($conn, $checkTableQuery);
-  
+
   if (!$tableCheckResult || mysqli_num_rows($tableCheckResult) === 0) {
     // Table doesn't exist, create it
     $createTableQuery = "CREATE TABLE user_addresses (
@@ -36,7 +36,7 @@
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       KEY `userid_idx` (userid)
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-    
+
     if (!mysqli_query($conn, $createTableQuery)) {
       $error = 'Lỗi tạo bảng dữ liệu: ' . htmlspecialchars(mysqli_error($conn));
     }
@@ -45,21 +45,21 @@
     $checkColumnsQuery = "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_NAME='user_addresses' AND TABLE_SCHEMA=DATABASE()";
     $columnsResult = mysqli_query($conn, $checkColumnsQuery);
     $existingColumns = array();
-    
+
     if ($columnsResult) {
       while ($col = mysqli_fetch_assoc($columnsResult)) {
         $existingColumns[] = $col['COLUMN_NAME'];
       }
     }
-    
+
     // Check if critical columns exist
     $requiredColumns = array('address_id', 'userid', 'full_name', 'phone', 'street_address', 'city', 'postal_code');
     $missingColumns = array_diff($requiredColumns, $existingColumns);
-    
+
     if (!empty($missingColumns)) {
       // Drop and recreate table if columns are missing
       mysqli_query($conn, "DROP TABLE IF EXISTS user_addresses");
-      
+
       $createTableQuery = "CREATE TABLE user_addresses (
         address_id INT AUTO_INCREMENT PRIMARY KEY,
         userid INT NOT NULL,
@@ -74,7 +74,7 @@
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY `userid_idx` (userid)
       ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-      
+
       if (!mysqli_query($conn, $createTableQuery)) {
         $error = 'Lỗi cấu hình bảng dữ liệu: ' . htmlspecialchars(mysqli_error($conn));
       }
@@ -113,6 +113,9 @@
     $country = trim($_POST['country']) ?: 'Việt Nam';
     $is_default = isset($_POST['is_default']) ? 1 : 0;
     $payment_method = isset($_POST['payment_method']) ? trim($_POST['payment_method']) : 'cod';
+    if (!in_array($payment_method, array('cod', 'transfer'), true)) {
+      $payment_method = 'cod';
+    }
 
     if ($full_name === '' || $phone === '' || $street_address === '' || $city === '') {
       $error = 'Tất cả các trường không được để trống.';
@@ -124,9 +127,13 @@
       $postal_code = mysqli_real_escape_string($conn, $postal_code);
       $country = mysqli_real_escape_string($conn, $country);
 
+      if ($is_default) {
+        mysqli_query($conn, "UPDATE user_addresses SET is_default = 0 WHERE userid = $userid");
+      }
+
       if ($address_id > 0) {
         // Update existing address
-        $updateQuery = "UPDATE user_addresses SET 
+        $updateQuery = "UPDATE user_addresses SET
           full_name = '$full_name',
           phone = '$phone',
           street_address = '$street_address',
@@ -143,7 +150,7 @@
         }
       } else {
         // Insert new address
-        $insertQuery = "INSERT INTO user_addresses 
+        $insertQuery = "INSERT INTO user_addresses
           (userid, full_name, phone, street_address, city, postal_code, country, payment_method, is_default)
           VALUES ($userid, '$full_name', '$phone', '$street_address', '$city', '$postal_code', '$country', '$payment_method', $is_default)";
         if (mysqli_query($conn, $insertQuery)) {
@@ -204,20 +211,20 @@
               <div class="row">
                 <div class="col-md-6 mb-3">
                   <label for="full_name" class="form-label">Họ Tên *</label>
-                  <input type="text" name="full_name" id="full_name" class="form-control" 
+                  <input type="text" name="full_name" id="full_name" class="form-control"
                     value="<?php echo $editAddress ? htmlspecialchars($editAddress['full_name']) : ''; ?>" required>
                 </div>
 
                 <div class="col-md-6 mb-3">
                   <label for="phone" class="form-label">Số Điện Thoại *</label>
-                  <input type="text" name="phone" id="phone" class="form-control" 
+                  <input type="text" name="phone" id="phone" class="form-control"
                     value="<?php echo $editAddress ? htmlspecialchars($editAddress['phone']) : ''; ?>" required>
                 </div>
               </div>
 
               <div class="mb-3">
                 <label for="street_address" class="form-label">Địa Chỉ Chi Tiết *</label>
-                <input type="text" name="street_address" id="street_address" class="form-control" 
+                <input type="text" name="street_address" id="street_address" class="form-control"
                   placeholder="Ví dụ: Số 123, Đường A, Quận B"
                   value="<?php echo $editAddress ? htmlspecialchars($editAddress['street_address']) : ''; ?>" required>
               </div>
@@ -225,19 +232,19 @@
               <div class="row">
                 <div class="col-md-4 mb-3">
                   <label for="city" class="form-label">Thành Phố/Tỉnh *</label>
-                  <input type="text" name="city" id="city" class="form-control" 
+                  <input type="text" name="city" id="city" class="form-control"
                     value="<?php echo $editAddress ? htmlspecialchars($editAddress['city']) : ''; ?>" required>
                 </div>
 
                 <div class="col-md-4 mb-3">
                   <label for="postal_code" class="form-label">Mã Bưu Chính *</label>
-                  <input type="text" name="postal_code" id="postal_code" class="form-control" 
+                  <input type="text" name="postal_code" id="postal_code" class="form-control"
                     value="<?php echo $editAddress ? htmlspecialchars($editAddress['postal_code']) : ''; ?>" required>
                 </div>
 
                 <div class="col-md-4 mb-3">
                   <label for="country" class="form-label">Quốc Gia *</label>
-                  <input type="text" name="country" id="country" class="form-control" 
+                  <input type="text" name="country" id="country" class="form-control"
                     value="<?php echo $editAddress ? htmlspecialchars($editAddress['country']) : 'Việt Nam'; ?>" required>
                 </div>
               </div>
@@ -258,7 +265,7 @@
                 <div class="col-md-6 mb-3">
                   <label class="form-label d-block">Tùy Chọn</label>
                   <div class="form-check">
-                    <input type="checkbox" name="is_default" id="is_default" class="form-check-input" 
+                    <input type="checkbox" name="is_default" id="is_default" class="form-check-input"
                       value="1" <?php echo ($editAddress && $editAddress['is_default']) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="is_default">
                       Đặt làm địa chỉ mặc định
@@ -292,43 +299,50 @@
               <div class="row g-3">
                 <?php foreach ($addresses as $addr): ?>
                   <div class="col-md-6">
-                    <div class="card h-100 border-warning">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                          <h6 class="card-title mb-0">
-                            <?php echo htmlspecialchars($addr['full_name']); ?>
-                            <?php if ($addr['is_default']): ?>
-                              <span class="badge bg-warning text-dark ms-2">Mặc định</span>
-                            <?php endif; ?>
-                          </h6>
+                    <div class="address-card h-100">
+                      <div class="address-card-body">
+                        <div class="address-card-header">
+                          <div class="address-name">
+                            <span class="name-icon"><i class="fa fa-user"></i></span>
+                            <span><?php echo htmlspecialchars($addr['full_name']); ?></span>
+                          </div>
+                          <?php if ($addr['is_default']): ?>
+                            <span class="default-badge"><i class="fa fa-check-circle"></i> Mặc định</span>
+                          <?php endif; ?>
                         </div>
 
-                        <p class="text-muted small mb-2">
-                          <i class="fa fa-phone"></i> <?php echo htmlspecialchars($addr['phone']); ?>
-                        </p>
-
-                        <p class="text-muted small mb-2">
-                          <i class="fa fa-map-marker-alt"></i><br>
-                          <?php echo htmlspecialchars($addr['street_address']); ?><br>
-                          <?php echo htmlspecialchars($addr['city']); ?>, <?php echo htmlspecialchars($addr['postal_code']); ?><br>
-                          <?php echo htmlspecialchars($addr['country']); ?>
-                        </p>
-
-                        <p class="text-muted small mb-3">
+                        <div class="address-detail-row">
+                          <i class="fa fa-phone"></i>
+                          <span><?php echo htmlspecialchars($addr['phone']); ?></span>
+                        </div>
+                        <div class="address-detail-row address-location">
+                          <i class="fa fa-map-marker-alt"></i>
+                          <div>
+                            <strong>Địa chỉ nhận hàng</strong>
+                            <span><?php echo htmlspecialchars($addr['street_address']); ?></span>
+                            <span><?php echo htmlspecialchars($addr['city']); ?></span>
+                          </div>
+                        </div>
+                        <div class="address-detail-row">
+                          <i class="fa fa-globe"></i>
+                          <span><?php echo htmlspecialchars($addr['country']); ?></span>
+                        </div>
+                        <?php if (!empty($addr['postal_code'])): ?>
+                          <div class="address-detail-row">
+                            <i class="fa fa-envelope"></i>
+                            <span>Mã bưu chính: <?php echo htmlspecialchars($addr['postal_code']); ?></span>
+                          </div>
+                        <?php endif; ?>
+                        <div class="address-detail-row payment-row">
                           <i class="fa fa-credit-card"></i>
-                          <?php 
-                            echo $addr['payment_method'] === 'cod' 
-                              ? 'Thanh Toán Khi Nhận Hàng' 
-                              : 'Chuyển Khoản Ngân Hàng'; 
-                          ?>
-                        </p>
+                          <span><?php echo $addr['payment_method'] === 'cod' ? 'Thanh toán khi nhận hàng (COD)' : 'Chuyển khoản ngân hàng'; ?></span>
+                        </div>
 
-                        <div class="d-flex gap-2">
+                        <div class="address-actions">
                           <a href="delivery_management.php?edit=<?php echo $addr['address_id']; ?>" class="btn btn-sm btn-outline-warning">
                             <i class="fa fa-edit"></i> Sửa
                           </a>
-                          <form method="post" action="delivery_management.php" style="display: inline;" 
-                            onsubmit="return confirm('Bạn có chắc muốn xóa địa chỉ này?');">
+                          <form method="post" action="delivery_management.php" onsubmit="return confirm('Bạn có chắc muốn xóa địa chỉ này?');">
                             <input type="hidden" name="address_id" value="<?php echo $addr['address_id']; ?>">
                             <button type="submit" name="delete_address" class="btn btn-sm btn-outline-danger">
                               <i class="fa fa-trash"></i> Xóa
@@ -358,6 +372,42 @@
     </div>
   </div>
 </div>
+
+<style>
+  .address-card {
+    height: 100%;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .address-card:hover {
+    transform: translateY(-3px);
+    border-color: #fbbf24;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, .1);
+  }
+  .address-card-body { padding: 18px; }
+  .address-card-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; margin-bottom: 16px; padding-bottom: 13px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .address-name { display: flex; align-items: center; gap: 9px; color: #111827; font-size: 1.08rem; font-weight: 700; }
+  .name-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff7ed; color: #f59e0b; font-size: .85rem; }
+  .default-badge { white-space: nowrap; padding: 4px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: .72rem; font-weight: 700; }
+  .address-detail-row { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 13px; color: #64748b; font-size: .92rem; }
+  .address-detail-row > i { width: 18px; padding-top: 3px; color: #94a3b8; text-align: center; }
+  .address-location div { display: flex; flex-direction: column; gap: 3px; line-height: 1.45; }
+  .address-location strong { margin-bottom: 2px; color: #475569; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+  .payment-row { margin-top: 2px; margin-bottom: 17px; }
+  .payment-row span { padding: 7px 10px; border-radius: 8px; background: #f8fafc; color: #475569; font-size: .8rem; }
+  .address-actions { display: flex; gap: 9px; padding-top: 14px; border-top: 1px solid #f1f5f9; }
+  .address-actions form { display: inline; }
+  .address-actions .btn { border-radius: 7px; font-weight: 600; }
+  @media (max-width: 575px) { .address-card-header { flex-direction: column; } .default-badge { align-self: flex-start; } }
+</style>
 
 <?php
   if(isset($conn)) { mysqli_close($conn); }

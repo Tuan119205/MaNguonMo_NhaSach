@@ -2,7 +2,6 @@
   header('Content-Type: text/html; charset=utf-8');
   session_start();
 
-  // Check login
   $isAdmin = isset($_SESSION['admin']) && $_SESSION['admin'] === true;
   $isUser = isset($_SESSION['user']) && $_SESSION['user'] === true && isset($_SESSION['userid']);
 
@@ -16,13 +15,12 @@
   runDatabaseMigrations();
 
   $conn = db_connect();
-  $title = $isAdmin ? "Quản Lý Đơn Hàng (Admin)" : "Đơn Hàng Của Tôi";
+  $title = $isAdmin ? "Quản lý Đơn hàng (Admin)" : "Đơn Hàng Của Tôi";
 
   $userid = $isUser ? intval($_SESSION['userid']) : 0;
   $success = '';
   $error = '';
 
-  // Status mapping definition
   $statusMap = array(
     'chờ_xử_lý' => array('name' => 'Chờ xử lý', 'icon' => 'fa-hourglass-half', 'class' => 'warning', 'text_class' => 'text-dark'),
     'đang_giao' => array('name' => 'Đang giao hàng', 'icon' => 'fa-truck', 'class' => 'info', 'text_class' => 'text-dark'),
@@ -34,65 +32,112 @@
     'cancelled' => array('name' => 'Đã hủy', 'icon' => 'fa-times-circle', 'class' => 'danger', 'text_class' => 'text-white'),
   );
 
-  // Handle Cancel order request (User or Admin)
+  function cancel_order_and_restore_inventory($conn, $orderid, $ownerId = null) {
+    mysqli_begin_transaction($conn);
+    $ownerSql = $ownerId !== null ? " AND customerid = " . intval($ownerId) : '';
+    $orderResult = mysqli_query($conn, "SELECT order_status FROM orders WHERE orderid = " . intval($orderid) . "$ownerSql FOR UPDATE");
+    $order = $orderResult ? mysqli_fetch_assoc($orderResult) : null;
+    if (!$order) { mysqli_rollback($conn); return array(false, 'Không tìm thấy đơn hàng.'); }
+    if (in_array($order['order_status'], array('đã_hủy', 'đã hủy', 'cancelled'), true)) { mysqli_rollback($conn); return array(false, 'Đơn hàng này đã được hủy trước đó.'); }
+    if (in_array($order['order_status'], array('đã_giao', 'delivered'), true)) { mysqli_rollback($conn); return array(false, 'Không thể hủy đơn hàng đã giao.'); }
+
+    $itemsResult = mysqli_query($conn, "SELECT book_isbn, quantity FROM order_items WHERE orderid = " . intval($orderid));
+    if (!$itemsResult) { mysqli_rollback($conn); return array(false, 'Không thể lấy sản phẩm trong đơn hàng.'); }
+
+    while ($item = mysqli_fetch_assoc($itemsResult)) {
+      $isbn = mysqli_real_escape_string($conn, $item['book_isbn']);
+      $quantity = max(0, intval($item['quantity']));
+      if (!mysqli_query($conn, "UPDATE books SET inventory = inventory + $quantity WHERE book_isbn = '$isbn'")) {
+        mysqli_rollback($conn);
+        return array(false, 'Không thể hoàn lại tồn kho.');
+      }
+    }
+
+    if (!mysqli_query($conn, "UPDATE orders SET order_status = 'đã_hủy' WHERE orderid = " . intval($orderid) . "$ownerSql")) {
+      mysqli_rollback($conn);
+      return array(false, 'Không thể cập nhật trạng thái đơn hàng.');
+    }
+
+    mysqli_commit($conn);
+    return array(true, '');
+  }
+
   if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_order'])) {
     $orderid = intval($_POST['orderid']);
 
-    // If regular user, ensure order belongs to them
     if (!$isAdmin) {
       $checkOwner = mysqli_query($conn, "SELECT orderid FROM orders WHERE orderid = $orderid AND customerid = $userid AND (order_status = 'chờ_xử_lý' OR order_status = 'pending') LIMIT 1");
       if ($checkOwner && mysqli_num_rows($checkOwner) > 0) {
-        $cancelQuery = "UPDATE orders SET order_status = 'đã_hủy' WHERE orderid = $orderid";
-        if (mysqli_query($conn, $cancelQuery)) {
-          $success = 'Hủy đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' thành công.';
+        [$cancelled, $cancelError] = cancel_order_and_restore_inventory($conn, $orderid, $userid);
+        if ($cancelled) {
+          $success = 'Hủy đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' thành công và đã hoàn lại tồn kho.';
         } else {
-          $error = 'Hủy đơn hàng thất bại: ' . mysqli_error($conn);
+          $error = $cancelError;
         }
       } else {
         $error = 'Không thể hủy đơn hàng này do đơn hàng không thuộc về bạn hoặc đã qua trạng thái xử lý.';
       }
     } else {
-      // Admin cancel
-      $cancelQuery = "UPDATE orders SET order_status = 'đã_hủy' WHERE orderid = $orderid";
-      if (mysqli_query($conn, $cancelQuery)) {
-        $success = 'Đã cập nhật trạng thái hủy cho đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT);
+      [$cancelled, $cancelError] = cancel_order_and_restore_inventory($conn, $orderid);
+      if ($cancelled) {
+        $success = 'Đã hủy đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' và hoàn lại tồn kho.';
       } else {
-        $error = 'Hủy đơn hàng thất bại: ' . mysqli_error($conn);
+        $error = $cancelError;
       }
     }
   }
 
-  // Handle Admin status update
   if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status']) && $isAdmin) {
     $orderid = intval($_POST['orderid']);
     $new_status = trim($_POST['status']);
     $allowedStatuses = array('chờ_xử_lý', 'đang_giao', 'đã_giao', 'đã_hủy');
+
     if (!in_array($new_status, $allowedStatuses, true)) {
       $error = 'Trạng thái đơn hàng không hợp lệ.';
       $new_status = 'chờ_xử_lý';
     }
     $new_status_escaped = mysqli_real_escape_string($conn, $new_status);
 
-    $updateQuery = "UPDATE orders SET order_status = '$new_status_escaped' WHERE orderid = $orderid";
-    if (mysqli_query($conn, $updateQuery)) {
-      $success = 'Cập nhật trạng thái đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' thành công.';
+    $currentStatusResult = mysqli_query($conn, "SELECT order_status FROM orders WHERE orderid = $orderid LIMIT 1");
+    $currentStatusRow = $currentStatusResult ? mysqli_fetch_assoc($currentStatusResult) : null;
+
+    if (!$currentStatusRow) {
+      $error = 'Không tìm thấy đơn hàng.';
+    } elseif (in_array($currentStatusRow['order_status'], array('đã_hủy', 'đã hủy', 'cancelled'), true) && $new_status !== 'đã_hủy') {
+      $error = 'Không thể mở lại đơn đã hủy vì tồn kho đã được hoàn lại.';
+    } elseif ($new_status === 'đã_hủy') {
+      [$updated, $updateError] = cancel_order_and_restore_inventory($conn, $orderid);
+      if ($updated) {
+        $success = 'Cập nhật trạng thái đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' thành công và đã hoàn lại tồn kho.';
+      } else {
+        $error = $updateError;
+      }
     } else {
-      $error = 'Cập nhật trạng thái thất bại: ' . mysqli_error($conn);
+      $updateQuery = "UPDATE orders SET order_status = '$new_status_escaped' WHERE orderid = $orderid";
+      if (mysqli_query($conn, $updateQuery)) {
+        $success = 'Cập nhật trạng thái đơn hàng #' . str_pad($orderid, 5, '0', STR_PAD_LEFT) . ' thành công.';
+      } else {
+        $error = 'Cập nhật trạng thái thất bại: ' . mysqli_error($conn);
+      }
     }
   }
 
-  // Filter parameters for Admin
   $filterStatus = trim($_GET['status'] ?? '');
   $searchQuery = trim($_GET['q'] ?? '');
   $adminPage = max(1, intval($_GET['page'] ?? 1));
   $ordersPerPage = 10;
   $adminTotalOrders = 0;
 
-  // Query orders
   if ($isAdmin) {
     $whereClauses = array();
     if (!empty($filterStatus)) {
-      $whereClauses[] = "order_status = '" . mysqli_real_escape_string($conn, $filterStatus) . "'";
+      if ($filterStatus === 'problem') {
+        $whereClauses[] = "order_status IN ('đã_hủy','cancelled','đã hủy')";
+      } elseif ($filterStatus === 'pending') {
+        $whereClauses[] = "order_status IN ('chờ_xử_lý','pending','chờ xác nhận','cho_xac_nhan')";
+      } else {
+        $whereClauses[] = "order_status = '" . mysqli_real_escape_string($conn, $filterStatus) . "'";
+      }
     }
     if (!empty($searchQuery)) {
       $s = mysqli_real_escape_string($conn, $searchQuery);
@@ -109,7 +154,6 @@
     $adminOffset = ($adminPage - 1) * $ordersPerPage;
     $ordersQuery = "SELECT * FROM orders $whereSql ORDER BY date DESC, orderid DESC LIMIT $ordersPerPage OFFSET $adminOffset";
   } else {
-    // Regular customer: strictly filter by their own userid
     $ordersQuery = "SELECT * FROM orders WHERE customerid = '$userid' ORDER BY date DESC, orderid DESC";
   }
 
@@ -122,33 +166,22 @@
   }
 
   require_once "./template/header.php";
+  require_once "./template/admin_layout.php";
+  if ($isAdmin) {
+    admin_layout_start('orders', 'Quản lý đơn hàng', 'QUẢN TRỊ HỆ THỐNG', '', '');
+  }
 ?>
 
 <?php if ($isAdmin): ?>
-<div class="admin-orders-shell">
-  <aside class="modern-admin-sidebar admin-orders-sidebar">
-    <div class="modern-admin-brand"><span class="modern-brand-mark">VL</span><div><strong>Nhà Sách Việt Long</strong><small>Admin Panel</small></div></div>
-    <nav>
-      <a href="admin_dashboard.php"><i class="fas fa-chart-pie"></i>Dashboard</a>
-      <a href="admin_customer.php"><i class="fas fa-users"></i>Quản lý người dùng</a>
-      <a href="admin_book.php"><i class="fas fa-book"></i>Quản lý sách</a>
-      <a class="active" href="orders.php"><i class="fas fa-shopping-bag"></i>Quản lý đơn hàng</a>
-    </nav>
-    <a class="modern-logout" href="admin_signout.php"><i class="fas fa-sign-out-alt"></i>Đăng xuất</a>
-  </aside>
-  <main class="admin-orders-main">
-<?php endif; ?>
 <div class="container py-4 orders-page <?php echo $isAdmin ? 'admin-orders-page' : 'user-orders-page'; ?>">
   <div class="row">
     <div class="col-12">
-      <!-- Breadcrumb -->
       <div class="orders-breadcrumb mb-3 text-muted small">
         <a href="index.php" class="text-decoration-none text-muted">Trang chủ</a>
         <span class="mx-2">&rsaquo;</span>
         <span class="fw-bold text-dark"><?php echo $isAdmin ? 'Quản lý đơn hàng' : 'Đơn hàng của tôi'; ?></span>
       </div>
 
-      <!-- Main Card -->
       <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
         <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
           <h3 class="mb-0 fw-bold text-dark fs-5">
@@ -160,7 +193,6 @@
         </div>
 
         <div class="card-body p-4">
-          <!-- Flash Messages -->
           <?php if ($success): ?>
             <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
               <i class="fa fa-check-circle me-2"></i><?php echo htmlspecialchars($success); ?>
@@ -175,22 +207,21 @@
             </div>
           <?php endif; ?>
 
-          <!-- Admin Filter Toolbar -->
           <?php if ($isAdmin): ?>
           <form method="get" action="orders.php" class="row g-2 mb-4 p-3 bg-light rounded-3 border">
             <div class="col-md-5">
               <div class="input-group input-group-sm">
                 <span class="input-group-text bg-white"><i class="fa fa-search text-muted"></i></span>
-                <input type="text" name="q" class="form-control" placeholder="Tìm theo mã đơn, tên hoặc SĐT..." value="<?php echo htmlspecialchars($searchQuery); ?>">
+                <input type="text" name="q" class="form-control" placeholder="Tìm theo mã đơn, tên khách hàng, SĐT..." value="<?php echo htmlspecialchars($searchQuery); ?>">
               </div>
             </div>
             <div class="col-md-4">
               <select name="status" class="form-select form-select-sm">
                 <option value="">-- Tất cả trạng thái --</option>
-                <option value="chờ_xử_lý" <?php echo ($filterStatus === 'chờ_xử_lý') ? 'selected' : ''; ?>>Chờ xử lý</option>
+                <option value="chờ_xử_lý" <?php echo ($filterStatus === 'chờ_xử_lý' || $filterStatus === 'pending') ? 'selected' : ''; ?>>Chờ xử lý</option>
                 <option value="đang_giao" <?php echo ($filterStatus === 'đang_giao') ? 'selected' : ''; ?>>Đang giao hàng</option>
                 <option value="đã_giao" <?php echo ($filterStatus === 'đã_giao') ? 'selected' : ''; ?>>Đã giao hàng</option>
-                <option value="đã_hủy" <?php echo ($filterStatus === 'đã_hủy') ? 'selected' : ''; ?>>Đã hủy</option>
+                <option value="đã_hủy" <?php echo ($filterStatus === 'đã_hủy' || $filterStatus === 'problem') ? 'selected' : ''; ?>>Đã hủy / Có vấn đề</option>
               </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
@@ -202,7 +233,6 @@
           </form>
           <?php endif; ?>
 
-          <!-- Orders Card List -->
           <div class="orders-list">
             <div class="orders-table-head" aria-hidden="true">
               <span>Mã đơn / Ngày đặt</span><span>Người nhận & SĐT</span><span>Tổng tiền / Thanh toán</span><span>Trạng thái</span><span>Thao tác</span>
@@ -213,12 +243,7 @@
                   <?php foreach ($orders as $order): ?>
                     <?php
                       $statusKey = $order['order_status'] ?? 'chờ_xử_lý';
-                      $statusInfo = $statusMap[$statusKey] ?? array(
-                        'name' => 'Chờ xử lý',
-                        'icon' => 'fa-hourglass-half',
-                        'class' => 'warning',
-                        'text_class' => 'text-dark'
-                      );
+                      $statusInfo = $statusMap[$statusKey] ?? array('name' => 'Chờ xử lý', 'icon' => 'fa-hourglass-half', 'class' => 'warning', 'text_class' => 'text-dark');
                       $isCancellable = ($statusKey === 'chờ_xử_lý' || $statusKey === 'pending');
                     ?>
                     <article class="order-card">
@@ -233,9 +258,7 @@
                         <?php endif; ?>
                       </div>
                       <div class="order-cell payment-cell" data-label="Tổng tiền / Thanh toán">
-                        <strong class="text-danger fs-6">
-                          <?php echo number_format($order['amount'], 0, ',', '.'); ?>đ
-                        </strong>
+                        <strong class="text-danger fs-6"><?php echo number_format($order['amount'], 0, ',', '.'); ?>₫</strong>
                         <div class="payment-method"><i class="fa fa-credit-card me-1"></i><?php echo ($order['payment_method'] === 'bank_transfer') ? 'Chuyển khoản' : 'COD'; ?></div>
                       </div>
                       <div class="order-cell status-cell" data-label="Trạng thái">
@@ -261,7 +284,6 @@
                       </div>
                     </article>
 
-                    <!-- Modal Detail for Order -->
                     <div class="modal fade" id="orderModal<?php echo $order['orderid']; ?>" tabindex="-1" aria-labelledby="modalLabel<?php echo $order['orderid']; ?>" aria-hidden="true">
                       <div class="modal-dialog modal-lg modal-dialog-centered">
                         <div class="modal-content rounded-4 border-0 overflow-hidden shadow">
@@ -272,7 +294,6 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                           </div>
                           <div class="modal-body p-4">
-                            <!-- Progress Status Indicator -->
                             <?php if ($statusKey !== 'đã_hủy' && $statusKey !== 'cancelled'): ?>
                             <div class="order-progress-steps mb-4 p-3 bg-light rounded-3 border">
                               <div class="row text-center g-2">
@@ -302,7 +323,6 @@
                             </div>
                             <?php endif; ?>
 
-                            <!-- Order & Recipient Info -->
                             <div class="row g-3 mb-4">
                               <div class="col-md-6">
                                 <div class="p-3 bg-light rounded-3 border h-100">
@@ -330,7 +350,6 @@
                               </div>
                             </div>
 
-                            <!-- Items Table in Modal -->
                             <h6 class="fw-bold text-dark mb-2"><i class="fa fa-book text-warning me-2"></i>Danh Sách Sách Trong Đơn</h6>
                             <div class="table-responsive border rounded-3 mb-3">
                               <table class="table table-sm table-hover align-middle mb-0">
@@ -370,8 +389,8 @@
                                         </div>
                                       </td>
                                       <td class="text-center fw-bold"><?php echo $item['quantity']; ?></td>
-                                      <td class="text-end small"><?php echo number_format($item['item_price'], 0, ',', '.'); ?>đ</td>
-                                      <td class="text-end fw-bold"><?php echo number_format($itemLineTotal, 0, ',', '.'); ?>đ</td>
+                                      <td class="text-end small"><?php echo number_format($item['item_price'], 0, ',', '.'); ?>₫</td>
+                                      <td class="text-end fw-bold"><?php echo number_format($itemLineTotal, 0, ',', '.'); ?>₫</td>
                                     </tr>
                                   <?php
                                       }
@@ -385,17 +404,17 @@
                                 <tfoot class="order-total-summary">
                                   <tr>
                                     <td colspan="3" class="text-end text-muted">Tạm tính:</td>
-                                    <td class="text-end fw-semibold"><?php echo number_format($itemsSubtotal, 0, ',', '.'); ?>đ</td>
+                                    <td class="text-end fw-semibold"><?php echo number_format($itemsSubtotal, 0, ',', '.'); ?>₫</td>
                                   </tr>
                                   <?php $difference = $itemsSubtotal - (float)$order['amount']; ?>
                                   <?php if (abs($difference) > 0.01): ?>
                                   <tr>
                                     <?php if ($difference > 0): ?>
                                       <td colspan="3" class="text-end text-success">Giảm giá / khuyến mãi:</td>
-                                      <td class="text-end fw-semibold text-success">-<?php echo number_format($difference, 0, ',', '.'); ?>đ</td>
+                                      <td class="text-end fw-semibold text-success">-<?php echo number_format($difference, 0, ',', '.'); ?>₫</td>
                                     <?php else: ?>
                                       <td colspan="3" class="text-end text-muted">Phụ phí / điều chỉnh đơn:</td>
-                                      <td class="text-end fw-semibold text-muted">+<?php echo number_format(abs($difference), 0, ',', '.'); ?>đ</td>
+                                      <td class="text-end fw-semibold text-muted">+<?php echo number_format(abs($difference), 0, ',', '.'); ?>₫</td>
                                     <?php endif; ?>
                                   </tr>
                                   <?php endif; ?>
@@ -405,13 +424,12 @@
                                   </tr>
                                   <tr class="total-row">
                                     <td colspan="3" class="text-end fw-bold">Tổng thanh toán:</td>
-                                    <td class="text-end fw-bold text-danger fs-6"><?php echo number_format($order['amount'], 0, ',', '.'); ?>đ</td>
+                                    <td class="text-end fw-bold text-danger fs-6"><?php echo number_format($order['amount'], 0, ',', '.'); ?>₫</td>
                                   </tr>
                                 </tfoot>
                               </table>
                             </div>
 
-                            <!-- Admin Status Update Form in Modal -->
                             <?php if ($isAdmin): ?>
                               <hr>
                               <div class="p-3 bg-light rounded-3 border">
@@ -459,8 +477,8 @@
                 <?php endfor; ?>
               </nav>
             <?php endif; ?>
+          </div>
 
-          <!-- Bottom Actions -->
           <?php if (!$isAdmin): ?>
           <div class="mt-4 d-flex justify-content-end align-items-center flex-wrap gap-2">
             <a href="profile.php" class="btn btn-outline-secondary">
@@ -473,134 +491,22 @@
     </div>
   </div>
 </div>
-
 <?php if ($isAdmin): ?>
-  </main>
-</div>
+<?php admin_layout_end(); ?>
+<?php endif; ?>
 <?php endif; ?>
 
 <style>
-html,body{margin:0!important;padding:0!important}.admin-orders-shell{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.admin-orders-shell .modern-admin-sidebar{display:flex;flex-direction:column;color:#fff}.admin-orders-shell .modern-admin-brand{display:flex;align-items:center;gap:10px;padding:0 10px 24px;border-bottom:1px solid #3b4149;color:#fff}.admin-orders-shell .modern-brand-mark{width:38px;height:38px;border-radius:10px;background:#f0b90b;color:#20242b;display:grid;place-items:center;font-weight:800}.admin-orders-shell .modern-admin-brand strong,.admin-orders-shell .modern-admin-brand small{display:block}.admin-orders-shell .modern-admin-brand strong{font-size:13px;line-height:1.3}.admin-orders-shell .modern-admin-brand small{font-size:11px;color:#aeb5bf;margin-top:3px}.admin-orders-shell .modern-admin-sidebar nav{padding-top:20px}.admin-orders-shell .modern-admin-sidebar nav a,.admin-orders-shell .modern-logout{display:flex;align-items:center;gap:11px;margin:0 0 4px;padding:12px 13px;border-radius:8px;color:#bcc3cc;text-decoration:none;font-size:13px;line-height:1.35}.admin-orders-shell .modern-admin-sidebar nav a i,.admin-orders-shell .modern-logout i{width:17px;text-align:center}.admin-orders-shell .modern-admin-sidebar nav a:hover,.admin-orders-shell .modern-admin-sidebar nav a.active{background:#343a43;color:#ffd45b;box-shadow:inset 3px 0 #f0b90b}.admin-orders-shell .modern-logout{margin-top:auto;border-top:1px solid #3b4149;border-radius:0;padding-top:20px}
-.orders-page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding-left: 16px;
-  padding-right: 16px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #1f2937;
-}
-
-.orders-page > .row > .col-12 { width: 100%; }
-.orders-page .card { background: #fff; border: 1px solid #e5e7eb; }
-.orders-page .card-header { background: #fff; border-bottom: 1px solid #e5e7eb; }
-.orders-table-head,
-.order-card {
-  display: grid;
-  grid-template-columns: 1.15fr 1.3fr 1.2fr 1.1fr 1.15fr;
-  gap: 16px;
-  align-items: center;
-}
-.orders-table-head {
-  padding: 10px 18px;
-  color: #6b7280;
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.order-card {
-  padding: 18px;
-  margin-bottom: 12px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(31,41,55,.05);
-  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-}
-.order-card:hover { transform: translateY(-2px); border-color: #f2c94c; box-shadow: 0 7px 18px rgba(31,41,55,.09); }
-.order-cell { min-width: 0; }
-.order-code { display: block; color: #b7791f; font-size: 1rem; }
-.order-date, .payment-method { display: block; color: #6b7280; font-size: .78rem; margin-top: 5px; }
-.order-actions { display: flex; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
-.order-actions form { margin: 0; }
-.order-actions .btn { border-radius: 7px; white-space: nowrap; transition: all .2s ease; }
-.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 7px 10px; border-radius: 999px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
-.status-warning { color: #8a5a00; background: #fff4cc; }
-.status-info { color: #075985; background: #e0f2fe; }
-.status-success { color: #166534; background: #dcfce7; }
-.status-danger { color: #991b1b; background: #fee2e2; }
-.orders-table-body { width: 100%; }
-.orders-empty-state { width: 100%; }
-.order-total-summary { border-top: 1px solid #e5e7eb; }
-.order-total-summary td { padding: 7px 12px; }
-.orders-pagination{display:flex;justify-content:center;gap:6px}.orders-pagination a{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 10px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#64748b;text-decoration:none;font-weight:600;font-size:13px}.orders-pagination a:hover,.orders-pagination a.active{background:#f0b90b;border-color:#f0b90b;color:#20242b}
-
-.step-box {
-  padding: 12px 6px;
-  border-radius: 8px;
-  background: #f3f4f6;
-  color: #9ca3af;
-  transition: all 0.25s ease;
-}
-
-.step-box.active {
-  background: #fff8e1;
-  color: #d97706;
-  border: 1px solid #fcd34d;
-}
-
-.step-box .step-icon { font-size: 1.4rem; }
-
-@media (max-width: 992px) {
-  .orders-table-head { display: none; }
-  .order-card { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
-  .actions-cell { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid #f1f5f9; }
-  .order-actions { justify-content: flex-start; }
-}
-
-@media (max-width: 576px) {
-  .orders-page { padding: 12px 10px 28px; }
-  .orders-page .card-body { padding: 14px !important; }
-  .orders-page .card-header { padding: 16px !important; }
-  .orders-page .card-header h3 { font-size: 1rem !important; }
-  .order-card { display: block; padding: 15px; margin-bottom: 10px; }
-  .order-cell { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f1f5f9; }
-  .order-cell::before { content: attr(data-label); color: #6b7280; font-size: .73rem; font-weight: 700; text-transform: uppercase; flex: 0 0 37%; }
-  .order-cell:last-child { border-bottom: 0; }
-  .order-code-cell { align-items: flex-start; }
-  .order-code-cell::before { padding-top: 2px; }
-  .order-actions { width: 100%; justify-content: stretch; }
-  .order-actions .btn, .order-actions form { flex: 1; }
-  .order-actions form .btn { width: 100%; }
-  .modal-dialog { margin: 10px; }
-  .modal-body { padding: 16px !important; }
-  .modal .table { min-width: 580px; }
-  .modal .table-responsive { overflow-x: auto; }
-}
-</style>
-
-<?php
-  if(isset($conn)) { mysqli_close($conn); }
-  require_once "./template/footer.php";
-?>
-
-<style>
-/* Admin orders layout aligned with the books management page */
-html,body{margin:0!important;padding:0!important;background:#f5f6f8}.admin-orders-shell{display:flex;min-height:100vh;width:100vw;background:#f5f6f8}.admin-orders-sidebar{position:fixed!important;inset:0 auto 0 0!important;width:250px!important;height:100vh!important;box-sizing:border-box;background:#20242b!important;padding:24px 14px!important;z-index:20}.admin-orders-main{width:auto;min-width:0;flex:1;margin-left:250px;padding:30px 34px 50px}.admin-orders-page{max-width:none!important;width:auto!important;margin:0!important;padding:0!important}.admin-orders-page .orders-breadcrumb{display:none}.admin-orders-page .card{border:1px solid #e2e8f0!important;border-radius:10px!important;box-shadow:0 2px 5px rgba(15,23,42,.04)!important}.admin-orders-page .card-header{padding:20px 22px!important;background:#fff!important;border-bottom:1px solid #e2e8f0!important}.admin-orders-page .card-header h3{color:#20242b!important;font-size:22px!important}.admin-orders-page .card-header .badge{background:#fff1bd!important;color:#a17c0f!important;font-size:12px!important}.admin-orders-page .card-body{padding:22px!important}.admin-orders-page .card-body>form{padding:14px!important;background:#f8fafc!important;border:1px solid #e2e8f0!important}.admin-orders-page .btn-warning{background:#f0b90b!important;border-color:#f0b90b!important;color:#20242b!important}.admin-orders-page .orders-table-head{color:#7c8590;border-bottom:1px solid #e2e8f0}.admin-orders-page .order-card{border:1px solid #e2e8f0;box-shadow:0 2px 5px rgba(15,23,42,.04);border-radius:10px}.admin-orders-page .order-card:hover{border-color:#f0b90b;box-shadow:0 7px 18px rgba(15,23,42,.09)}.admin-orders-page .order-code{color:#b17d00}.admin-orders-page .order-actions .btn-outline-primary{border-color:#b9c2d0;color:#475569}.admin-orders-page .order-actions .btn-outline-primary:hover{background:#20242b;color:#fff}.admin-orders-page .modal-header{background:#f0b90b!important}.admin-orders-page .status-warning{background:#fff1bd;color:#8a5a00}.admin-orders-page .order-total-summary .total-row td{border-top-color:#f0b90b}.admin-orders-page .empty-orders{padding:35px!important}
-@media(max-width:700px){.admin-orders-shell{display:block}.admin-orders-sidebar{position:relative!important;width:100%!important;height:auto!important;min-height:auto!important;padding:12px!important}.admin-orders-sidebar nav{display:grid;grid-template-columns:1fr 1fr;gap:2px}.admin-orders-sidebar nav a{margin:0;padding:9px;font-size:12px}.admin-orders-main{margin-left:0;padding:20px 14px 32px}.admin-orders-page .card-header h3{font-size:17px!important}.admin-orders-page .card-body{padding:14px!important}}
-</style>
-
-<style>
-/* Prevent admin orders from exceeding the viewport */
-html,body{width:100%;max-width:100%;overflow-x:hidden}.admin-orders-shell{display:block!important;width:100%;min-height:100vh;overflow:hidden}.admin-orders-sidebar{position:fixed!important;left:0;top:0;bottom:0;width:250px!important;box-sizing:border-box}.admin-orders-main{display:block!important;width:calc(100% - 250px)!important;max-width:none!important;min-width:0!important;margin-left:250px!important;box-sizing:border-box;overflow:hidden}.admin-orders-page{width:100%!important;max-width:none!important;box-sizing:border-box}.admin-orders-page .orders-list,.admin-orders-page .orders-table-body{max-width:100%;overflow:hidden}.admin-orders-page .order-card{max-width:100%;box-sizing:border-box}@media(max-width:700px){.admin-orders-shell{display:block!important;overflow:visible}.admin-orders-sidebar{position:relative!important;width:100%!important;height:auto!important;min-height:auto}.admin-orders-main{width:100%!important;margin-left:0!important;overflow:visible}}
-</style>
-
-<style>
-/* Remove the empty top strip from admin order management */
-body:has(.admin-orders-shell) .clear-fix,body:has(.admin-orders-shell) .site-footer-spacer,body:has(.admin-orders-shell) .pt-5{display:none!important}body:has(.admin-orders-shell) .admin-orders-shell{margin-top:0!important;padding-top:0!important}.admin-orders-main{padding-top:0!important}.admin-orders-page{padding-top:30px!important}
-</style>
-
-<style>
-/* Admin orders do not use the public footer/container spacing */
-body:has(.admin-orders-shell) .site-footer,body:has(.admin-orders-shell) .site-footer-spacer{display:none!important}body:has(.admin-orders-shell) #pageContent{margin:0!important;padding:0!important;max-width:none!important}.admin-orders-main>.orders-page{margin:0!important}
+html,body{margin:0!important;padding:0!important}.admin-orders-shell{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.admin-orders-shell .modern-admin-sidebar{display:flex;flex-direction:column;color:#fff}.admin-orders-shell .modern-admin-brand{display:flex;align-items:center;gap:10px;padding:0 10px 20px;border-bottom:1px solid #3b4149;color:#fff;min-width:0}.admin-orders-shell .modern-admin-brand>div{min-width:0;flex:1}.admin-orders-shell .modern-brand-mark{width:38px;height:38px;border-radius:10px;background:#f0b90b;color:#20242b;display:grid;place-items:center;font-weight:800;flex:0 0 38px}.admin-orders-shell .modern-admin-brand strong,.admin-orders-shell .modern-admin-brand small{display:block;white-space:normal}.admin-orders-shell .modern-admin-brand strong{font-size:15px;line-height:1.25}.admin-orders-shell .modern-admin-brand small{font-size:12px;color:#aeb5bf;margin-top:4px}.admin-orders-shell .modern-admin-sidebar nav{padding-top:20px}.admin-orders-shell .modern-admin-sidebar nav a,.admin-orders-shell .modern-logout{display:flex;align-items:center;gap:11px;margin:0 0 4px;padding:12px 13px;border-radius:8px;color:#bcc3cc;text-decoration:none;font-size:13px;line-height:1.35}.admin-orders-shell .modern-admin-sidebar nav a i,.admin-orders-shell .modern-logout i{width:17px;text-align:center}.admin-orders-shell .modern-admin-sidebar nav a:hover,.admin-orders-shell .modern-admin-sidebar nav a.active{background:#343a43;color:#ffd45b;box-shadow:inset 3px 0 #f0b90b}.admin-orders-shell .modern-logout{margin-top:auto;border-top:1px solid #3b4149;border-radius:0;padding-top:20px}
+html,body{margin:0!important;padding:0!important;background:#f3f5f8;color:#1f2937}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.admin-orders-shell{display:flex;min-height:100vh;width:100%;background:linear-gradient(180deg,#f5f7fa 0%,#edf2f7 100%)}
+.admin-orders-shell .modern-admin-sidebar{display:flex;flex-direction:column;color:#fff;background:#1d2430;box-shadow:inset -1px 0 0 rgba(255,255,255,.04);padding:20px 14px 18px;min-width:250px;max-width:250px}.admin-orders-shell .modern-admin-brand{display:flex;align-items:center;gap:12px;padding:8px 10px 18px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)}
+.admin-orders-shell .modern-admin-brand strong,.admin-orders-shell .modern-admin-brand small{display:block;line-height:1.25}
+.admin-orders-shell .modern-admin-brand strong{font-size:15px;color:#fff}.admin-orders-shell .modern-admin-brand small{font-size:12px;color:#b8c1d1;margin-top:3px}
+.admin-orders-shell .modern-brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#f5c94b,#e7a700);color:#1c2330;display:grid;place-items:center;font-weight:900;box-shadow:0 8px 18px rgba(245,201,75,.35)}
+.admin-orders-shell .modern-admin-sidebar nav{padding-top:16px}.admin-orders-shell .modern-admin-sidebar nav a,.admin-orders-shell .modern-logout{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;text-decoration:none;color:#d2d9e3;font-weight:600;transition:all .2s ease}.admin-orders-shell .modern-admin-sidebar nav a i,.admin-orders-shell .modern-logout i{width:16px;text-align:center}.admin-orders-shell .modern-admin-sidebar nav a:hover,.admin-orders-shell .modern-admin-sidebar nav a.active{background:rgba(255,255,255,.07);color:#ffe08c;box-shadow:inset 3px 0 #f5c94b}.admin-orders-shell .modern-logout{margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:18px;color:#f4d7d7}
+.orders-page{max-width:1220px;margin:0 auto;padding:26px 18px 40px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1f2937}
+.orders-page>.row>.col-12{width:100%}.orders-page .card{background:rgba(255,255,255,.94);border:1px solid #e7ebf2;border-radius:20px;box-shadow:0 12px 28px rgba(15,23,42,.06);overflow:hidden}.orders-page .card-header{background:linear-gradient(135deg,#ffffff 0%,#fffaf0 100%);border-bottom:1px solid #eef2f6;padding:18px 22px}.orders-page .card-header h3{color:#1f2937;font-size:1.35rem;font-weight:800}.orders-page .card-header .badge{background:linear-gradient(135deg,#ffd861,#f2b600);color:#1f2937;font-weight:700}.orders-page .card-body{background:#fbfcfe}.orders-page .orders-breadcrumb{color:#64748b}.orders-table-head,.order-card{display:grid;grid-template-columns:1.15fr 1.3fr 1.2fr 1.1fr 1.15fr;gap:16px;align-items:center}.orders-table-head{padding:12px 18px;color:#64748b;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #edf1f5}.order-card{padding:18px;margin-bottom:12px;background:#ffffff;border:1px solid #edf2f7;border-radius:16px;box-shadow:0 8px 18px rgba(15,23,42,.04);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.order-card:hover{transform:translateY(-2px);border-color:#f1c54d;box-shadow:0 12px 22px rgba(15,23,42,.08)}.order-cell{min-width:0}.order-code{display:block;color:#9b6100;font-size:1.04rem;font-weight:800}.order-date,.payment-method{display:block;color:#6b7280;font-size:.78rem;margin-top:5px}.order-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}.order-actions form{margin:0}.order-actions .btn{border-radius:9px;white-space:nowrap;transition:all .2s ease;font-weight:700}.order-actions .btn-outline-primary{border-color:#91a9d4;color:#2d4e81}.order-actions .btn-outline-primary:hover{background:#1f2937;color:#fff;border-color:#1f2937}.order-actions .btn-outline-danger:hover{background:#dc2626;color:#fff}.status-badge{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.status-warning{color:#8a5a00;background:#fff3cc}.status-info{color:#0f4c81;background:#dff1ff}.status-success{color:#166534;background:#dcfce7}.status-danger{color:#991b1b;background:#fee2e2}.orders-table-body{width:100%}.orders-empty-state{width:100%}.order-total-summary{border-top:1px solid #eaedf2}.order-total-summary td{padding:8px 12px}.orders-pagination{display:flex;justify-content:center;gap:6px;flex-wrap:wrap}.orders-pagination a{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;padding:0 10px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;color:#475569;text-decoration:none;font-weight:700;font-size:13px}.orders-pagination a:hover,.orders-pagination a.active{background:linear-gradient(135deg,#f5c94b,#f0b90b);border-color:#f0b90b;color:#1d2430;box-shadow:0 8px 20px rgba(240,185,11,.2)}
+.step-box{padding:12px 6px;border-radius:12px;background:#f6f8fb;color:#94a3b8;border:1px solid transparent;transition:all .25s ease}.step-box.active{background:linear-gradient(135deg,#fff7d6,#fff0b7);color:#a56700;border-color:#f6d25a}
 </style>

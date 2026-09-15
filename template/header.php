@@ -36,14 +36,14 @@
         .navbar > .container { flex-wrap: nowrap; }
         .navbar-brand { flex: 0 0 auto; white-space: nowrap; margin-right: 24px !important; }
         #topNav { display: flex; align-items: center; min-width: 0; flex-wrap: nowrap; }
-        #topNav > .navbar-nav.me-auto { display: flex; flex: 1 1 auto; flex-wrap: nowrap; margin-right: 12px !important; min-width: 0; }
+        #topNav > .navbar-nav.me-auto { display: flex; flex: 0 1 auto; flex-wrap: nowrap; margin-right: 16px !important; min-width: 0; }
         #topNav > .navbar-nav .nav-item { flex: 0 0 auto; }
         #topNav > .navbar-nav .nav-link { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
-        #topNav > form[role="search"] { flex: 0 1 245px; width: 245px; margin-left: 8px; margin-right: 10px !important; }
-        #topNav > form[role="search"] input { min-width: 0; }
+        #topNav > form[role="search"] { flex: 0 0 160px; width: 160px; margin-left: auto; margin-right: 12px !important; }
+        #topNav > form[role="search"] input { min-width: 0; width: 100%; }
         #topNav > form[role="search"] .btn { flex: 0 0 auto; }
-        #topNav > a.nav-link { white-space: nowrap; padding-left: 8px; padding-right: 8px; }
-        #topNav > .user-account-menu { flex: 0 0 auto; margin-left: 4px; }
+        #topNav > a.nav-link { flex: 0 0 auto; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
+        #topNav > .user-account-menu { flex: 0 0 auto; margin-left: 0; white-space: nowrap; }
       }
       @media (max-width: 991.98px) {
         #topNav > form[role="search"] { margin: 10px 0; }
@@ -55,6 +55,9 @@
       @media (max-width: 575.98px) {
         #topNav > .navbar-nav .nav-link { padding-left: 6px; padding-right: 6px; font-size: .95rem; }
       }
+      .admin-page-content { width: 100%; max-width: none; margin: 0; padding: 0; }
+      body:has(.admin-page-content) { margin: 0; padding: 0; overflow-x: hidden; }
+      body:has(.admin-page-content) > #pageContent { min-height: 100vh; }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/js/all.min.js" integrity="sha512-6PM0qYu5KExuNcKt5bURAoT6KCThUmHRewN3zUFNaoI6Di7XJPTMoT6K0nsagZKk2OB4L7E3q1uQKHNHd4stIQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -72,11 +75,11 @@
       $isAuthPage = ($currentPage === 'auth.php');
       // Chỉ các trang quản trị mới ẩn menu người dùng. Không dựa vào session admin,
       // để admin vẫn nhìn thấy giao diện người dùng khi quay về trang chủ.
-      $adminPages = ['admin.php', 'admin_dashboard.php', 'admin_book.php', 'admin_customer.php', 'admin_customer_add.php', 'admin_add.php', 'admin_promotions.php', 'admin_reports.php', 'admin_edit.php', 'admin_delete.php', 'admin_verify.php'];
+      $adminPages = ['admin.php', 'admin_dashboard.php', 'admin_book.php', 'admin_customer.php', 'admin_customer_add.php', 'admin_add.php', 'admin_promotions.php', 'admin_reports.php', 'admin_chatbot.php', 'admin_edit.php', 'admin_delete.php', 'admin_verify.php'];
       // orders.php dùng chung cho người dùng và Admin: chỉ ẩn navbar khi Admin thật sự ở trang này.
       $isAdminPage = in_array($currentPage, $adminPages, true) || ($currentPage === 'orders.php' && isset($_SESSION['admin']) && $_SESSION['admin'] === true);
     ?>
-    <?php if(!$isAdminPage): ?>
+    <?php if(!$isAuthPage && !$isAdminPage): ?>
     <nav class="navbar navbar-expand-lg navbar-light bg-warning bg-gradient">
       <div class="container">
         <a class="navbar-brand fw-bold" href="index.php">Nhà Sách Việt Long</a>
@@ -126,4 +129,34 @@
       </div>
     <?php } ?>
 
-    <div class="container" id="pageContent">
+    <div class="<?php echo $isAdminPage ? 'admin-page-content' : 'container'; ?>" id="pageContent">
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const adminNavPaths = new Set([
+          'admin_dashboard.php',
+          'admin_customer.php',
+          'admin_book.php',
+          'orders.php',
+          'admin_promotions.php',
+          'admin_reports.php',
+                     'admin_chatbot.php',
+                     'admin_signout.php'
+        ]);
+
+        document.querySelectorAll('a[href]').forEach(function (link) {
+          const href = (link.getAttribute('href') || '').replace(/^\.\//, '');
+          if (!adminNavPaths.has(href)) {
+            return;
+          }
+
+          link.addEventListener('click', function (event) {
+            if (link.dataset.navLocked === '1') {
+              event.preventDefault();
+              return;
+            }
+            link.dataset.navLocked = '1';
+          }, { passive: false });
+        });
+      });
+    </script>

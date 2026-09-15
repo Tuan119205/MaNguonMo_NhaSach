@@ -42,8 +42,20 @@
 		$city = trim($_POST['city'] ?? '');
 		$zip_code = trim($_POST['zip_code'] ?? '');
 		$country = trim($_POST['country'] ?? 'Việt Nam');
-		$payment_method = trim($_POST['payment_method'] ?? 'cod');
+			$payment_method = trim($_POST['payment_method'] ?? 'cod');
+		if ($payment_method === 'transfer') {
+		$payment_method = 'bank_transfer';
+		}
+		if (!in_array($payment_method, array('cod', 'bank_transfer'), true)) {
+		$payment_method = 'cod';
+		}
+		$addressPaymentMethod = $payment_method === 'bank_transfer' ? 'transfer' : 'cod';
 		$notes = trim($_POST['notes'] ?? '');
+		// Lưu mã khuyến mãi vào ghi chú đơn hàng để báo cáo có thể thống kê lượt dùng từ database.
+		$voucherCode = strtoupper(trim((string)($_SESSION['voucher_code'] ?? '')));
+		if ($voucherCode !== '') {
+		$notes = '[Mã giảm giá: ' . $voucherCode . '] ' . $notes;
+		}
 		$saveAddress = isset($_POST['save_to_address_book']) && $_POST['save_to_address_book'] == '1';
 
 		if (empty($name) || empty($phone) || empty($address) || empty($city)) {
@@ -59,13 +71,36 @@
 			$chkRes = mysqli_query($conn, $chkQuery);
 			if (!$chkRes || mysqli_num_rows($chkRes) === 0) {
 				$insertAddr = "INSERT INTO user_addresses (userid, full_name, phone, street_address, city, postal_code, country, payment_method, is_default)
-				VALUES ($userid, '" . mysqli_real_escape_string($conn, $name) . "', '" . mysqli_real_escape_string($conn, $phone) . "', '" . mysqli_real_escape_string($conn, $address) . "', '" . mysqli_real_escape_string($conn, $city) . "', '" . mysqli_real_escape_string($conn, $zip_code) . "', '" . mysqli_real_escape_string($conn, $country) . "', '" . mysqli_real_escape_string($conn, $payment_method) . "', 0)";
+				VALUES ($userid, '" . mysqli_real_escape_string($conn, $name) . "', '" . mysqli_real_escape_string($conn, $phone) . "', '" . mysqli_real_escape_string($conn, $address) . "', '" . mysqli_real_escape_string($conn, $city) . "', '" . mysqli_real_escape_string($conn, $zip_code) . "', '" . mysqli_real_escape_string($conn, $country) . "', '" . mysqli_real_escape_string($conn, $addressPaymentMethod) . "', 0)";
 				mysqli_query($conn, $insertAddr);
 			}
 		}
 
-		// Calculate total amount
-			$cartTotals = current_cart_totals($_SESSION['cart']);
+			// Kiểm tra tồn kho trước khi tạo đơn.
+		mysqli_begin_transaction($conn);
+		$cartItems = array();
+		$stockError = '';
+		foreach ($_SESSION['cart'] as $isbn => $cartQty) {
+		$qty = intval($cartQty);
+		$escapedIsbn = mysqli_real_escape_string($conn, $isbn);
+		$stockResult = mysqli_query($conn, "SELECT book_title, book_author, book_image, book_price, inventory FROM books WHERE book_isbn = '$escapedIsbn' FOR UPDATE");
+		$stockBook = $stockResult ? mysqli_fetch_assoc($stockResult) : null;
+		if ($qty < 1 || !$stockBook || (int)$stockBook['inventory'] < $qty) {
+		$available = $stockBook ? (int)$stockBook['inventory'] : 0;
+		$stockError = 'Sách "' . htmlspecialchars($stockBook['book_title'] ?? $isbn) . '" chỉ còn ' . $available . ' cuốn.';
+		break;
+		}
+		$cartItems[] = array('isbn' => $isbn, 'qty' => $qty, 'book' => $stockBook);
+		}
+		if ($stockError !== '') {
+		mysqli_rollback($conn);
+			echo '<div class="container py-5"><div class="alert alert-danger rounded-4">' . $stockError . ' <a href="cart.php">Quay lại giỏ hàng</a></div></div>';
+		if(isset($conn)){ mysqli_close($conn); }
+			require_once "./template/footer.php";
+			exit;
+		}
+
+		$cartTotals = current_cart_totals($_SESSION['cart']);
 		$cartTotal = $cartTotals['subtotal'];
 		$discountAmount = $cartTotals['discount'];
 		$totalAmount = $cartTotals['total'];
@@ -76,17 +111,29 @@
 
 		if ($createdOrderId > 0) {
 			// Insert each item into order_items
-			foreach ($_SESSION['cart'] as $isbn => $qty) {
-				$bookprice = floatval(getbookprice($isbn));
-				$qty = intval($qty);
+			foreach ($cartItems as $cartItem) {
+	$isbn = $cartItem['isbn'];
+	$qty = $cartItem['qty'];
+				$bookprice = floatval($cartItem['book']['book_price']);
 				$escapedIsbn = mysqli_real_escape_string($conn, $isbn);
 
 				$itemQuery = "INSERT INTO order_items (orderid, book_isbn, item_price, quantity)
 				VALUES ('$createdOrderId', '$escapedIsbn', '$bookprice', '$qty')";
-				mysqli_query($conn, $itemQuery);
+					if (!mysqli_query($conn, $itemQuery)) {
+				mysqli_rollback($conn);
+				$createdOrderId = 0;
+				break;
+				}
+
+				$stockUpdate = "UPDATE books SET inventory = inventory - $qty WHERE book_isbn = '$escapedIsbn' AND inventory >= $qty";
+					if (!mysqli_query($conn, $stockUpdate) || mysqli_affected_rows($conn) !== 1) {
+				mysqli_rollback($conn);
+				$createdOrderId = 0;
+				break;
+				}
 
 				// Keep items in memory for receipt display
-				$bookInfo = mysqli_fetch_assoc(getBookByIsbn($conn, $isbn));
+				$bookInfo = $cartItem['book'];
 				$placedItems[] = [
 					'isbn' => $isbn,
 					'title' => $bookInfo['book_title'] ?? 'Sách',
@@ -98,7 +145,16 @@
 				];
 			}
 
-			// Store summary for page view
+					if ($createdOrderId > 0) {
+				mysqli_commit($conn);
+				} else {
+					echo '<div class="container py-5"><div class="alert alert-danger rounded-4">Không thể lưu đầy đủ sản phẩm trong đơn hàng. Vui lòng thử lại. <a href="cart.php">Quay lại giỏ hàng</a></div></div>';
+				if(isset($conn)){ mysqli_close($conn); }
+					require_once "./template/footer.php";
+					exit;
+				}
+
+				// Store summary for page view
 			$placedOrder = [
 				'orderid' => $createdOrderId,
 				'date' => $date,

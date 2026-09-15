@@ -41,7 +41,7 @@
 	$email = mysqli_real_escape_string($conn, $email);
 	$username = mysqli_real_escape_string($conn, $username);
 	$phone = mysqli_real_escape_string($conn, $phone);
-	$passwordHash = md5($password);
+	$passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
 	$check_email = "SELECT userid FROM users WHERE email = '{$email}'";
 	$result_email = mysqli_query($conn, $check_email);

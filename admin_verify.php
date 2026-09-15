@@ -11,9 +11,9 @@
 	$pass = trim($_POST['pass']);
 
 	if($name == "" || $pass == ""){
-		$_SESSION['err_login'] = "Tên đăng nhập hoặc mật khẩu không được để trống!";
+			$_SESSION['err_login'] = "Tên đăng nhập hoặc mật khẩu không được để trống!";
 		$_SESSION['auth_tab'] = "login";
-		header("Location: auth.php");
+			header("Location: admin.php");
 		exit;
 	}
 
@@ -24,13 +24,14 @@
 	$query = "SELECT `name`, `pass` FROM `admin` WHERE `name` = '{$name}' AND `pass` = '{$passHash}'";
 	$result = mysqli_query($conn, $query);
 	if($result->num_rows <= 0){
-		$_SESSION['err_login'] = "Tên đăng nhập hoặc mật khẩu không chính xác";
+			$_SESSION['err_login'] = "Tên đăng nhập hoặc mật khẩu không chính xác";
 		$_SESSION['auth_tab'] = "login";
-		header("Location: auth.php");
+			header("Location: admin.php");
 		exit;
 	}
 	if(isset($conn)) {mysqli_close($conn);}
 	$_SESSION['admin'] = true;
-	$_SESSION['auth_tab'] = "login";
-	header("Location: admin_book.php");
+	unset($_SESSION['err_login']);
+	header("Location: admin_dashboard.php");
+	exit;
 ?>

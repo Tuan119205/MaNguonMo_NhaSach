@@ -39,7 +39,118 @@ $edit = null;
 if (isset($_GET['edit'])) { $editResult = mysqli_query($conn, 'SELECT * FROM promotions WHERE id=' . (int)$_GET['edit']); $edit = $editResult ? mysqli_fetch_assoc($editResult) : null; }
 $list = mysqli_query($conn, 'SELECT * FROM promotions ORDER BY id DESC');
 require './template/header.php';
+require_once './template/admin_layout.php';
+admin_layout_start('admin_promotions', 'Quản lý khuyến mãi', 'MARKETING', 'Tạo và kiểm soát mã giảm giá đang áp dụng trên hệ thống', '');
 ?>
-<div class="promo-admin"><aside class="promo-admin-side"><strong>Nhà sách Việt Long</strong><small>Quản trị viên</small><nav><a href="admin_dashboard.php">Dashboard</a><a href="admin_customer.php">Quản lý người dùng</a><a href="admin_book.php">Quản lý sách</a><a href="orders.php">Quản lý đơn hàng</a><a class="active" href="admin_promotions.php">Quản lý khuyến mãi</a></nav></aside><main class="promo-admin-main"><header><div><span>MARKETING</span><h1>Quản lý khuyến mãi</h1><p>Tạo và kiểm soát mã giảm giá đang áp dụng trên hệ thống.</p></div><a href="promotions.php" class="promo-view">Xem trang khách hàng</a></header><?php if ($notice): ?><div class="promo-alert success"><?= htmlspecialchars($notice) ?></div><?php endif; ?><?php if ($error): ?><div class="promo-alert error"><?= htmlspecialchars($error) ?></div><?php endif; ?><section class="promo-admin-grid"><div class="promo-admin-card"><h2><?= $edit ? 'Chỉnh sửa khuyến mãi' : 'Tạo khuyến mãi mới' ?></h2><form method="post"><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?= (int)($edit['id'] ?? 0) ?>"><label>Mã khuyến mãi<input name="code" value="<?= htmlspecialchars($edit['code'] ?? '') ?>" required></label><label>Tên chương trình<input name="name" value="<?= htmlspecialchars($edit['name'] ?? '') ?>" required></label><label>Loại giảm<select name="type"><option value="percent" <?= (($edit['type'] ?? '') === 'percent') ? 'selected' : '' ?>>Theo phần trăm</option><option value="fixed" <?= (($edit['type'] ?? '') === 'fixed') ? 'selected' : '' ?>>Số tiền cố định</option><option value="shipping">Miễn phí vận chuyển</option><option value="special">Mua 3 tặng 1</option></select></label><div class="promo-fields"><label>Giá trị<input type="number" name="value" min="0" step="0.01" value="<?= htmlspecialchars($edit['value'] ?? 0) ?>"></label><label>Đơn tối thiểu<input type="number" name="min_order" min="0" step="1000" value="<?= htmlspecialchars($edit['min_order'] ?? 0) ?>"></label></div><label>Ngày hết hạn<input type="date" name="expires_at" value="<?= htmlspecialchars($edit['expires_at'] ?? '') ?>" required></label><label class="promo-check"><input type="checkbox" name="active" <?= (!$edit || (int)$edit['active'] === 1) ? 'checked' : '' ?>> Đang kích hoạt</label><button class="promo-save">Lưu khuyến mãi</button><?php if ($edit): ?><a class="promo-cancel" href="admin_promotions.php">Hủy chỉnh sửa</a><?php endif; ?></form></div><div class="promo-admin-card"><div class="promo-card-heading"><h2>Danh sách chương trình</h2><span><?= $list ? mysqli_num_rows($list) : 0 ?> chương trình</span></div><div class="promo-table-wrap"><table><thead><tr><th>Mã</th><th>Chương trình</th><th>Giảm</th><th>Hết hạn</th><th>Trạng thái</th><th></th></tr></thead><tbody><?php if ($list): while ($promo = mysqli_fetch_assoc($list)): ?><tr><td><b><?= htmlspecialchars($promo['code']) ?></b></td><td><?= htmlspecialchars($promo['name']) ?><small>Tối thiểu <?= number_format($promo['min_order'], 0, ',', '.') ?>đ</small></td><td><?= $promo['type'] === 'percent' ? $promo['value'].'%' : ($promo['type'] === 'fixed' ? number_format($promo['value'], 0, ',', '.').'đ' : 'Đặc biệt') ?></td><td><?= date('d/m/Y', strtotime($promo['expires_at'])) ?></td><td><form method="post"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int)$promo['id'] ?>"><button class="status <?= $promo['active'] ? 'on' : 'off' ?>"><?= $promo['active'] ? 'Đang bật' : 'Đã tắt' ?></button></form></td><td><a href="?edit=<?= (int)$promo['id'] ?>">Sửa</a><form method="post" onsubmit="return confirm('Xóa chương trình này?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int)$promo['id'] ?>"><button class="delete">Xóa</button></form></td></tr><?php endwhile; endif; ?></tbody></table></div></div></section></main></div>
-<style>.promo-admin{display:flex;min-height:100vh;background:#f8fafc;color:#172033}.promo-admin-side{position:fixed;width:250px;inset:0 auto 0 0;background:#20242b;color:#fff;padding:26px 16px;box-sizing:border-box}.promo-admin-side strong,.promo-admin-side small{display:block}.promo-admin-side strong{font-size:14px}.promo-admin-side small{color:#aeb5bf;margin-top:4px}.promo-admin-side nav{margin-top:28px}.promo-admin-side nav a{display:block;color:#bcc3cc;text-decoration:none;padding:12px;border-radius:8px;margin:4px 0;font-size:13px}.promo-admin-side nav a.active,.promo-admin-side nav a:hover{background:#343a43;color:#ffd45b}.promo-admin-main{margin-left:250px;padding:35px;width:calc(100% - 250px);box-sizing:border-box}.promo-admin-main header,.promo-card-heading{display:flex;justify-content:space-between;align-items:center}.promo-admin-main header{border-bottom:1px solid #e2e8f0;padding-bottom:24px;margin-bottom:22px}.promo-admin-main header span{font-size:11px;color:#4f46e5;font-weight:800;letter-spacing:.12em}.promo-admin-main h1{margin:5px 0;font-size:28px}.promo-admin-main p{margin:0;color:#64748b;font-size:13px}.promo-view,.promo-cancel{color:#4f46e5;text-decoration:none;font-size:13px}.promo-alert{padding:12px 15px;border-radius:8px;margin-bottom:18px}.promo-alert.success{background:#dcfce7;color:#166534}.promo-alert.error{background:#fee2e2;color:#991b1b}.promo-admin-grid{display:grid;grid-template-columns:330px 1fr;gap:20px}.promo-admin-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;box-shadow:0 2px 5px #0f172a0a}.promo-admin-card h2{margin:0 0 18px;font-size:17px}.promo-admin-card label{display:block;font-size:12px;font-weight:700;color:#475569;margin:12px 0}.promo-admin-card input:not([type=checkbox]),.promo-admin-card select{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;border:1px solid #dbe2ea;border-radius:7px}.promo-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.promo-check{display:flex!important;gap:7px;align-items:center}.promo-save,.promo-cancel{display:inline-block;border:0;border-radius:7px;padding:10px 14px;margin-top:8px;background:#4f46e5;color:#fff;font-weight:700}.promo-cancel{background:#f1f5f9;color:#475569;margin-left:5px}.promo-card-heading span{font-size:12px;color:#64748b}.promo-table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:13px 9px;border-bottom:1px solid #eef2f7}th{font-size:11px;color:#64748b}td small{display:block;color:#94a3b8;margin-top:4px}.status,.delete{border:0;background:none;cursor:pointer;color:#4f46e5}.status.on{color:#15803d}.status.off{color:#94a3b8}.delete{color:#dc2626;margin-left:8px}@media(max-width:850px){.promo-admin-grid{grid-template-columns:1fr}.promo-admin-main{margin-left:0;width:100%;padding:20px}.promo-admin-side{position:relative;width:100%;height:auto}.promo-admin{display:block}}</style>
-<?php mysqli_close($conn); require './template/footer.php'; ?>
+<div class="admin-panel" style="padding: 22px 20px; margin-bottom: 22px;">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+    <div>
+      <h2 class="mb-1" style="font-size: 1.5rem; margin: 0;">Tạo khuyến mãi mới</h2>
+      <p class="mb-0 text-muted">Điền đầy đủ thông tin để cập nhật chương trình khuyến mãi.</p>
+    </div>
+    <a href="promotions.php" class="admin-button" style="background:#fff; border:1px solid #e5e7eb;">Xem trang khách hàng</a>
+  </div>
+
+  <?php if ($notice): ?><div class="alert alert-success mb-3"><?= htmlspecialchars($notice) ?></div><?php endif; ?>
+  <?php if ($error): ?><div class="alert alert-danger mb-3"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+
+  <form method="post" class="row g-3">
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="id" value="<?= (int)($edit['id'] ?? 0) ?>">
+    <div class="col-md-6">
+      <label class="form-label fw-semibold">Mã khuyến mãi</label>
+      <input class="form-control" name="code" value="<?= htmlspecialchars($edit['code'] ?? '') ?>" required>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label fw-semibold">Tên chương trình</label>
+      <input class="form-control" name="name" value="<?= htmlspecialchars($edit['name'] ?? '') ?>" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Loại giảm</label>
+      <select class="form-select" name="type">
+        <option value="percent" <?= (($edit['type'] ?? '') === 'percent') ? 'selected' : '' ?>>Theo phần trăm</option>
+        <option value="fixed" <?= (($edit['type'] ?? '') === 'fixed') ? 'selected' : '' ?>>Số tiền cố định</option>
+        <option value="shipping" <?= (($edit['type'] ?? '') === 'shipping') ? 'selected' : '' ?>>Miễn phí vận chuyển</option>
+        <option value="special" <?= (($edit['type'] ?? '') === 'special') ? 'selected' : '' ?>>Đặc biệt</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Giá trị</label>
+      <input type="number" step="0.01" min="0" class="form-control" name="value" value="<?= htmlspecialchars((string)($edit['value'] ?? 0)) ?>" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Đơn tối thiểu</label>
+      <input type="number" step="0.01" min="0" class="form-control" name="min_order" value="<?= htmlspecialchars((string)($edit['min_order'] ?? 0)) ?>">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label fw-semibold">Hết hạn</label>
+      <input type="date" class="form-control" name="expires_at" value="<?= htmlspecialchars($edit['expires_at'] ?? '') ?>" required>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+      <label class="form-check-label d-flex align-items-center gap-2 w-100 p-2 border rounded-3 bg-light">
+        <input type="checkbox" name="active" value="1" <?= (($edit['active'] ?? 1) == 1) ? 'checked' : '' ?>>
+        <span class="fw-semibold">Kích hoạt ngay</span>
+      </label>
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="admin-button"><?= $edit ? 'Cập nhật' : 'Lưu khuyến mãi' ?></button>
+      <a href="admin_promotions.php" class="btn btn-outline-secondary">Hủy</a>
+    </div>
+  </form>
+</div>
+
+<div class="admin-panel" style="padding: 22px 20px;">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+    <div>
+      <h2 class="mb-1" style="font-size: 1.5rem; margin: 0;">Danh sách khuyến mãi</h2>
+      <p class="mb-0 text-muted">Tất cả chương trình đang có trong hệ thống.</p>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Mã</th>
+          <th>Tên</th>
+          <th>Loại</th>
+          <th>Giá trị</th>
+          <th>Hết hạn</th>
+          <th>Trạng thái</th>
+          <th>Hành động</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (mysqli_num_rows($list) > 0): while ($row = mysqli_fetch_assoc($list)): ?>
+          <tr>
+            <td><?= htmlspecialchars($row['code']) ?></td>
+            <td><?= htmlspecialchars($row['name']) ?></td>
+            <td><?= match ($row['type']) { 'percent' => 'Phần trăm', 'fixed' => 'Số tiền', 'shipping' => 'Miễn phí ship', 'special' => 'Đặc biệt', default => 'Không xác định' }; ?></td>
+            <td><?= $row['type'] === 'percent' ? $row['value'] . '%' : number_format((float)$row['value'], 0, ',', '.') . 'đ'; ?></td>
+            <td><?= htmlspecialchars($row['expires_at']) ?></td>
+            <td><?= $row['active'] ? '<span class="badge bg-success">Đang áp dụng</span>' : '<span class="badge bg-secondary">Tắt</span>' ?></td>
+            <td>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="admin_promotions.php?edit=<?= (int)$row['id'] ?>" class="btn btn-sm btn-outline-primary">Sửa</a>
+                <form method="post" action="admin_promotions.php" class="d-inline">
+                  <input type="hidden" name="action" value="toggle">
+                  <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary"><?= $row['active'] ? 'Tắt' : 'Bật' ?></button>
+                </form>
+                <form method="post" action="admin_promotions.php" class="d-inline" onsubmit="return confirm('Xóa khuyến mãi này?');">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        <?php endwhile; else: ?>
+          <tr><td colspan="7" class="text-center text-muted py-4">Chưa có khuyến mãi nào.</td></tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php admin_layout_end(); ?>
+<?php require_once "./template/footer.php"; ?>

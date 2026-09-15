@@ -125,5 +125,38 @@
           ('WEEKEND','Ưu đãi cuối tuần','percent',15,50000,'2026-12-30',1)");
       }
 
+      // Migration 9: Tables for the shared user/admin chatbot.
+      mysqli_query($conn, "CREATE TABLE IF NOT EXISTS chatbot_settings (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        bot_name VARCHAR(100) NOT NULL DEFAULT 'Trợ lý Việt Long',
+        allow_user TINYINT(1) NOT NULL DEFAULT 1,
+        allow_guest TINYINT(1) NOT NULL DEFAULT 1,
+        allow_admin TINYINT(1) NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+      mysqli_query($conn, "INSERT IGNORE INTO chatbot_settings (id, bot_name, allow_user, allow_guest, allow_admin) VALUES (1, 'Trợ lý Việt Long', 1, 1, 1)");
+      mysqli_query($conn, "CREATE TABLE IF NOT EXISTS chatbot_knowledge (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        question VARCHAR(255) NOT NULL,
+        answer TEXT NOT NULL,
+        category VARCHAR(50) NOT NULL DEFAULT 'general',
+        status TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_chatbot_knowledge_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+      mysqli_query($conn, "CREATE TABLE IF NOT EXISTS chatbot_conversations (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        session_key VARCHAR(128) NOT NULL,
+        userid INT UNSIGNED DEFAULT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'GUEST',
+        message TEXT NOT NULL,
+        response TEXT NOT NULL,
+        page_context VARCHAR(100) DEFAULT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_chatbot_conversations_user (userid),
+        KEY idx_chatbot_conversations_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
     }
 ?>

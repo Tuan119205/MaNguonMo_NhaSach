@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 	// the shopping cart needs sessions, to start one
 	/*
 Array of session(
@@ -249,7 +249,9 @@ if (isset($_SESSION['cart']) && (array_count_values($_SESSION['cart']))) {
 					foreach ($_SESSION['cart'] as $isbn => $qty) {
 						$conn = db_connect();
 						$book = mysqli_fetch_assoc(getBookByIsbn($conn, $isbn));
-						$bookImage = !empty($book['book_image']) ? './bootstrap/img/' . $book['book_image'] : './bootstrap/img/default-book.jpg';
+						$bookImage = !empty($book['book_image'])
+	? './bootstrap/img/' . rawurlencode(basename($book['book_image']))
+	: './bootstrap/img/dark-bg.jpg';
 						$lineTotal = $qty * $book['book_price'];
 					?>
 						<div class="cart-item-row">
@@ -258,7 +260,7 @@ if (isset($_SESSION['cart']) && (array_count_values($_SESSION['cart']))) {
 							</button>
 							<div class="product-cell">
 								<div class="product-thumb">
-									<img src="<?php echo $bookImage; ?>" alt="<?php echo htmlspecialchars($book['book_title']); ?>">
+									<img src="<?php echo htmlspecialchars($bookImage, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($book['book_title']); ?>" onerror="this.onerror=null;this.src='./bootstrap/img/dark-bg.jpg';">
 								</div>
 								<div class="product-info">
 									<h5><?php echo htmlspecialchars($book['book_title']); ?></h5>

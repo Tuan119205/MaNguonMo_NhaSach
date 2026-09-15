@@ -1,5 +1,6 @@
 <?php
 session_start();
+header('Content-Type: text/html; charset=UTF-8');
 if (!isset($_SESSION['admin']) || $_SESSION['admin'] !== true) {
   header('Location: admin.php');
   exit;
@@ -20,40 +21,62 @@ function admin_money($value)
   return number_format((float)$value, 0, ',', '.') . 'đ';
 }
 
-$totalRevenue = admin_count($conn, "SELECT COALESCE(SUM(amount),0) FROM orders WHERE order_status NOT IN ('đã_hủy','cancelled','đã hủy')");
+$validOrders = "order_status NOT IN ('đã_hủy','cancelled','đã hủy')";
+$range = $_GET['range'] ?? 'month';
+$allowedRanges = array('7days','30days','month','year');
+if (!in_array($range, $allowedRanges, true)) $range = 'month';
+$rangeSql = array('7days'=>'DATE_SUB(CURDATE(), INTERVAL 6 DAY)','30days'=>'DATE_SUB(CURDATE(), INTERVAL 29 DAY)','month'=>"DATE_FORMAT(CURDATE(), '%Y-%m-01')",'year'=>"DATE_FORMAT(CURDATE(), '%Y-01-01')")[$range];
+$rangeStart = $rangeSql;
+$rangeEnd = 'DATE_ADD(CURDATE(), INTERVAL 1 DAY)';
+$monthStart = "DATE_FORMAT(CURDATE(), '%Y-%m-01')";
+$previousStart = "DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')";
+$previousEnd = $monthStart;
+function admin_percent_change($current, $previous) { if ((float)$previous == 0) return (float)$current > 0 ? 100 : 0; return (($current - $previous) / $previous) * 100; }
+$totalRevenue = admin_count($conn, "SELECT COALESCE(SUM(amount),0) FROM orders WHERE $validOrders");
 $totalOrders = admin_count($conn, "SELECT COUNT(*) FROM orders");
-$totalSold = admin_count($conn, "SELECT COALESCE(SUM(oi.quantity),0) FROM order_items oi INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.order_status NOT IN ('đã_hủy','cancelled','đã hủy')");
+$totalSold = admin_count($conn, "SELECT COALESCE(SUM(oi.quantity),0) FROM order_items oi INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.$validOrders");
 $totalUsers = admin_count($conn, "SELECT COUNT(*) FROM users");
-$pendingOrders = admin_count($conn, "SELECT COUNT(*) FROM orders WHERE order_status IN ('chờ_xử_lý','pending')");
+$currentStats = array(
+  admin_count($conn, "SELECT COALESCE(SUM(amount),0) FROM orders WHERE date >= $monthStart AND date < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND $validOrders"),
+  admin_count($conn, "SELECT COUNT(*) FROM orders WHERE date >= $monthStart AND date < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"),
+  admin_count($conn, "SELECT COALESCE(SUM(oi.quantity),0) FROM order_items oi INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.date >= $monthStart AND o.date < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND o.$validOrders"),
+  admin_count($conn, "SELECT COUNT(*) FROM users WHERE created_at >= $monthStart AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)")
+);
+$previousStats = array(
+  admin_count($conn, "SELECT COALESCE(SUM(amount),0) FROM orders WHERE date >= $previousStart AND date < $previousEnd AND $validOrders"),
+  admin_count($conn, "SELECT COUNT(*) FROM orders WHERE date >= $previousStart AND date < $previousEnd"),
+  admin_count($conn, "SELECT COALESCE(SUM(oi.quantity),0) FROM order_items oi INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.date >= $previousStart AND o.date < $previousEnd AND o.$validOrders"),
+  admin_count($conn, "SELECT COUNT(*) FROM users WHERE created_at >= $previousStart AND created_at < $previousEnd")
+);
+$statChanges = array(); foreach ($currentStats as $key => $value) $statChanges[] = admin_percent_change($value, $previousStats[$key]);
+$pendingOrders = admin_count($conn, "SELECT COUNT(*) FROM orders WHERE order_status IN ('chờ_xử_lý','pending','chờ xác nhận','cho_xac_nhan')");
 $shippingOrders = admin_count($conn, "SELECT COUNT(*) FROM orders WHERE order_status IN ('đang_giao','shipping')");
 $deliveredOrders = admin_count($conn, "SELECT COUNT(*) FROM orders WHERE order_status IN ('đã_giao','delivered')");
 $cancelledOrders = admin_count($conn, "SELECT COUNT(*) FROM orders WHERE order_status IN ('đã_hủy','cancelled','đã hủy')");
-
+$problemOrders = $cancelledOrders;
+$outOfStock = admin_count($conn, "SELECT COUNT(*) FROM books WHERE inventory <= 0");
+$lowStock = admin_count($conn, "SELECT COUNT(*) FROM books WHERE inventory > 0 AND inventory <= 10");
 $topBooks = array();
-$topResult = mysqli_query($conn, "SELECT b.book_title, COALESCE(SUM(oi.quantity),0) sold, COALESCE(SUM(oi.quantity*oi.item_price),0) revenue FROM order_items oi INNER JOIN books b ON b.book_isbn=oi.book_isbn INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.order_status NOT IN ('đã_hủy','cancelled','đã hủy') GROUP BY b.book_isbn,b.book_title ORDER BY sold DESC LIMIT 5");
+$topResult = mysqli_query($conn, "SELECT b.book_title,b.book_image,COALESCE(SUM(oi.quantity),0) sold,COALESCE(SUM(oi.quantity*oi.item_price),0) revenue FROM order_items oi INNER JOIN books b ON b.book_isbn=oi.book_isbn INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.date >= DATE_FORMAT(CURDATE(), '%Y-01-01') AND o.date < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND o.$validOrders GROUP BY b.book_isbn,b.book_title,b.book_image ORDER BY sold DESC, revenue DESC LIMIT 5");
 if ($topResult) while ($row = mysqli_fetch_assoc($topResult)) $topBooks[] = $row;
-
-$recentOrders = array();
-$recentResult = mysqli_query($conn, "SELECT orderid, ship_name, amount, order_status, date FROM orders ORDER BY date DESC, orderid DESC LIMIT 8");
-if ($recentResult) while ($row = mysqli_fetch_assoc($recentResult)) $recentOrders[] = $row;
-
-$chartLabels = array();
-$chartValues = array();
-$chartRevenue = array();
-$chartStart = new DateTime('first day of this month');
-$chartEnd = new DateTime('first day of next month');
+$recentOrders = array(); $recentResult = mysqli_query($conn, "SELECT orderid,ship_name,amount,order_status,date FROM orders ORDER BY date DESC,orderid DESC LIMIT 8"); if ($recentResult) while ($row = mysqli_fetch_assoc($recentResult)) $recentOrders[] = $row;
+$chartLabels = $chartRevenue = array();
+$chartKeys = array();
+$chartStart = new DateTime($range === 'year' ? date('Y-01-01') : ($range === 'month' ? date('Y-m-01') : '-' . ($range === '7days' ? '6' : '29') . ' days'));
+$chartEnd = new DateTime('tomorrow');
 $chartCursor = clone $chartStart;
 while ($chartCursor < $chartEnd) {
-  $chartLabels[] = $chartCursor->format('d/m');
-  $chartValues[] = 0;
+  $key = $range === 'year' ? $chartCursor->format('Y-m') : $chartCursor->format('Y-m-d');
+  $chartKeys[] = $key;
+  $chartLabels[] = $range === 'year' ? $chartCursor->format('m/Y') : $chartCursor->format('d/m');
   $chartRevenue[] = 0;
-  $chartCursor->modify('+1 day');
+  $chartCursor->modify($range === 'year' ? '+1 month' : '+1 day');
 }
-$chartResult = mysqli_query($conn, "SELECT DAY(o.date) day, COALESCE(SUM(o.amount),0) revenue, COALESCE(SUM(items.qty),0) qty FROM orders o LEFT JOIN (SELECT orderid, SUM(quantity) qty FROM order_items GROUP BY orderid) items ON items.orderid=o.orderid WHERE o.date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND o.date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH) AND o.order_status NOT IN ('đã_hủy','cancelled','đã hủy') GROUP BY DAY(o.date) ORDER BY day");
+$groupSql = $range === 'year' ? "DATE_FORMAT(o.date, '%Y-%m')" : "DATE(o.date)";
+$chartResult = mysqli_query($conn, "SELECT $groupSql period,COALESCE(SUM(o.amount),0) revenue FROM orders o WHERE o.date >= $rangeStart AND o.date < $rangeEnd AND o.$validOrders GROUP BY period ORDER BY period");
 if ($chartResult) while ($row = mysqli_fetch_assoc($chartResult)) {
-  $index = max(0, min(count($chartLabels) - 1, ((int)$row['day']) - 1));
-  $chartValues[$index] = (int)$row['qty'];
-  $chartRevenue[$index] = (float)$row['revenue'];
+  $index = array_search($row['period'], $chartKeys, true);
+  if ($index !== false) $chartRevenue[$index] = (float)$row['revenue'];
 }
 require './template/header.php';
 ?>
@@ -69,6 +92,7 @@ require './template/header.php';
       <a href="orders.php"><i class="fa fa-shopping-bag"></i>Quản lý đơn hàng</a>
       <a href="admin_promotions.php"><i class="fa fa-tags"></i>Quản lý khuyến mãi</a>
       <a href="admin_reports.php"><i class="fa fa-chart-column"></i>Thống kê và báo cáo</a>
+      <a href="admin_chatbot.php"><i class="fa fa-robot"></i>Quản lý Chatbot</a>
     </nav>
     <a class="admin-logout" href="admin_signout.php"><i class="fa fa-sign-out-alt"></i>Đăng xuất</a>
   </aside>
@@ -81,27 +105,19 @@ require './template/header.php';
     </div>
     <section class="stat-grid">
       <div class="stat-card revenue"><span class="stat-icon"><i class="fa fa-wallet"></i></span>
-        <div><small>Tổng doanh thu</small><strong><?= admin_money($totalRevenue) ?></strong></div>
+        <div><small>Tổng doanh thu</small><strong><?= admin_money($totalRevenue) ?></strong><em class="stat-change <?= $statChanges[0] >= 0 ? 'up' : 'down' ?>"><i class="fa fa-arrow-<?= $statChanges[0] >= 0 ? 'up' : 'down' ?>"></i> <?= number_format(abs($statChanges[0]), 1) ?>% so với tháng trước</em></div>
       </div>
       <div class="stat-card orders"><span class="stat-icon"><i class="fa fa-shopping-bag"></i></span>
-        <div><small>Tổng đơn hàng</small><strong><?= number_format($totalOrders) ?></strong></div>
+        <div><small>Tổng đơn hàng</small><strong><?= number_format($totalOrders) ?></strong><em class="stat-change <?= $statChanges[1] >= 0 ? 'up' : 'down' ?>"><i class="fa fa-arrow-<?= $statChanges[1] >= 0 ? 'up' : 'down' ?>"></i> <?= number_format(abs($statChanges[1]), 1) ?>% so với tháng trước</em></div>
       </div>
       <div class="stat-card books"><span class="stat-icon"><i class="fa fa-book"></i></span>
-        <div><small>Sách đã bán</small><strong><?= number_format($totalSold) ?></strong></div>
+        <div><small>Số sách đã bán</small><strong><?= number_format($totalSold) ?></strong><em class="stat-change <?= $statChanges[2] >= 0 ? 'up' : 'down' ?>"><i class="fa fa-arrow-<?= $statChanges[2] >= 0 ? 'up' : 'down' ?>"></i> <?= number_format(abs($statChanges[2]), 1) ?>% so với tháng trước</em></div>
       </div>
       <div class="stat-card users"><span class="stat-icon"><i class="fa fa-users"></i></span>
-        <div><small>Tổng người dùng</small><strong><?= number_format($totalUsers) ?></strong></div>
+        <div><small>Tổng khách hàng</small><strong><?= number_format($totalUsers) ?></strong><em class="stat-change <?= $statChanges[3] >= 0 ? 'up' : 'down' ?>"><i class="fa fa-arrow-<?= $statChanges[3] >= 0 ? 'up' : 'down' ?>"></i> <?= number_format(abs($statChanges[3]), 1) ?>% so với tháng trước</em></div>
       </div>
     </section>
     <section class="admin-grid main-grid" id="reports">
-      <div class="admin-panel chart-panel">
-        <div class="panel-heading">
-          <div>
-            <h2>Doanh thu trong tháng</h2>
-            <p>Doanh thu theo từng ngày trong tháng hiện tại, không tính đơn đã hủy</p>
-          </div><span class="panel-icon"><i class="fa fa-chart-line"></i></span>
-        </div><canvas id="salesChart" height="115"></canvas>
-      </div>
       <div class="admin-panel order-status-panel">
         <div class="panel-heading">
           <div>
@@ -110,10 +126,10 @@ require './template/header.php';
           </div>
         </div>
         <div class="status-list">
-          <div><span class="dot pending"></span>Chờ xử lý<strong><?= $pendingOrders ?></strong></div>
-          <div><span class="dot shipping"></span>Đang giao<strong><?= $shippingOrders ?></strong></div>
-          <div><span class="dot delivered"></span>Đã giao<strong><?= $deliveredOrders ?></strong></div>
-          <div><span class="dot cancelled"></span>Đã hủy<strong><?= $cancelledOrders ?></strong></div>
+          <div class="status-item pending-item"><span class="dot pending"></span><span class="status-label">Chờ xử lý</span><strong><?= $pendingOrders ?></strong></div>
+          <div class="status-item shipping-item"><span class="dot shipping"></span><span class="status-label">Đang giao</span><strong><?= $shippingOrders ?></strong></div>
+          <div class="status-item delivered-item"><span class="dot delivered"></span><span class="status-label">Đã giao</span><strong><?= $deliveredOrders ?></strong></div>
+          <div class="status-item cancelled-item"><span class="dot cancelled"></span><span class="status-label">Đã hủy</span><strong><?= $cancelledOrders ?></strong></div>
         </div><a class="panel-link" href="orders.php">Xem quản lý đơn hàng <i class="fa fa-arrow-right"></i></a>
       </div>
     </section>
@@ -122,7 +138,7 @@ require './template/header.php';
         <div class="panel-heading">
           <div>
             <h2>Top sách bán chạy</h2>
-            <p>Top 5 theo số lượng thực bán</p>
+            <p>Top 5 theo số lượng thực bán trong năm <?= date('Y') ?></p>
           </div><a href="admin_book.php" class="panel-link">Quản lý sách</a>
         </div>
         <div class="table-wrap">
@@ -139,7 +155,7 @@ require './template/header.php';
                   <td colspan="4" class="empty">Chưa có dữ liệu</td>
                 </tr><?php else: foreach ($topBooks as $i => $book): ?><tr>
                     <td><span class="rank"><?= $i + 1 ?></span></td>
-                    <td class="book-name"><?= htmlspecialchars($book['book_title']) ?></td>
+                    <td class="book-name"><div class="top-book-info"><img src="bootstrap/img/<?= htmlspecialchars($book['book_image'] ?: 'placeholder.jpg') ?>" alt=""><span><?= htmlspecialchars($book['book_title']) ?></span></div></td>
                     <td><?= number_format($book['sold']) ?> cuốn</td>
                     <td class="money"><?= admin_money($book['revenue']) ?></td>
                   </tr><?php endforeach;
@@ -159,52 +175,12 @@ require './template/header.php';
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 endif; ?></div>
       </div>
     </section>
+    <section class="admin-grid dashboard-bottom-grid">
+      <div class="admin-panel alert-panel"><div class="panel-heading"><div><h2>Cảnh báo cần xử lý</h2><p>Các mục cần được kiểm tra ngay</p></div><i class="fa fa-bell panel-icon"></i></div><div class="alert-list"><a href="admin_book.php?stock=low"><span class="alert-dot warning"></span><span>Sách sắp hết</span><strong><?= $lowStock ?></strong><i class="fa fa-chevron-right"></i></a><a href="orders.php?status=pending"><span class="alert-dot warning"></span><span>Đơn chờ xác nhận</span><strong><?= $pendingOrders ?></strong><i class="fa fa-chevron-right"></i></a><a href="orders.php?status=problem"><span class="alert-dot danger"></span><span>Đơn có vấn đề</span><strong><?= $problemOrders ?></strong><i class="fa fa-chevron-right"></i></a></div></div>
+    </section>
   </main>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  new Chart(document.getElementById('salesChart'), {
-        type: 'line',
-        data: {
-          labels: <?= json_encode($chartLabels, JSON_UNESCAPED_UNICODE) ?>,
-          datasets: [{
-            data: <?= json_encode($chartRevenue) ?>,
-            borderColor: '#b17d00',
-            backgroundColor: 'rgba(242,190,45,.14)',
-            fill: true,
-            tension: .35,
-            pointRadius: 4,
-            pointBackgroundColor: '#b17d00'
-          }]
-        },
-        options: {
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) { return 'Doanh thu: ' + new Intl.NumberFormat('vi-VN').format(context.raw) + 'đ'; }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                precision: 0,
-                callback: function(value) { return new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(value) + 'đ'; }
-              }
-            },
-            x: {
-              grid: {
-                display: false
-              }
-            }
-          }
-        }
-      });
-</script>
+<!-- Chart.js không được tải vì biểu đồ đã tắt. -->
 <style>
   :root {
     --admin-yellow: #f0b90b;
@@ -416,7 +392,12 @@ require './template/header.php';
   }
 
   .main-grid {
-    grid-template-columns: 1.65fr 1fr
+    grid-template-columns: 1fr
+  }
+
+  .order-status-panel {
+    width: 100%;
+    grid-column: 1 / -1;
   }
 
   .lower-grid {
@@ -614,10 +595,112 @@ require './template/header.php';
   }
 
   .order-status-panel {
-    min-height: 280px
+    min-height: 280px;
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  /* Ẩn biểu đồ doanh thu, giữ lại khu vực trạng thái đơn hàng */
+  .dashboard-revenue-chart {
+    display: none !important;
+  }
+
+  .main-grid:has(.dashboard-revenue-chart) {
+    grid-template-columns: 1fr;
+  }
+
+  .order-status-panel {
+    width: 100%;
+    min-height: 0;
+    padding: 22px 26px;
+    box-sizing: border-box;
+  }
+
+  .order-status-panel .status-list {
+    width: 100%;
+    max-width: none;
+  }
+
+  .order-status-panel .status-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 24px;
+    margin-top: 4px;
+    width: 100%;
+  }
+
+  .order-status-panel .status-list > div {
+    min-height: 110px;
+    width: 100%;
+    padding: 22px 24px;
+    box-sizing: border-box;
+    border: 1px solid #edf1f5;
+    border-radius: 12px;
+    background: #fbfcfe;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 1fr auto;
+    column-gap: 12px;
+    align-items: center;
+    font-size: 15px;
+  }
+
+  .order-status-panel .status-list > div:last-child {
+    border-bottom: 1px solid #edf1f5;
+  }
+
+  .order-status-panel .status-label {
+    color: #182235;
+    font-weight: 500;
+  }
+
+  .order-status-panel .status-list strong {
+    grid-column: 2;
+    grid-row: 2;
+    color: #182235;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .order-status-panel .dot {
+    width: 14px;
+    height: 14px;
+    margin-right: 14px;
+    flex: 0 0 14px;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, .10);
+  }
+
+  .order-status-panel .dot.shipping { box-shadow: 0 0 0 4px rgba(59, 130, 246, .10); }
+  .order-status-panel .dot.delivered { box-shadow: 0 0 0 4px rgba(16, 185, 129, .10); }
+  .order-status-panel .dot.cancelled { box-shadow: 0 0 0 4px rgba(239, 68, 68, .10); }
+
+  .order-status-panel .panel-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 18px;
+    padding-top: 15px;
+    border-top: 1px solid #edf1f5;
+    font-size: 14px;
+    color: #b17d00;
+  }
+
+  .order-status-panel .panel-link i {
+    transition: transform .2s ease;
+  }
+
+  .order-status-panel .panel-link:hover i {
+    transform: translateX(4px);
   }
 
   @media(max-width:1000px) {
+    .order-status-panel .status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .order-status-panel .status-list > div { padding-left: 16px; padding-right: 16px; }
+
+
     .admin-sidebar {
       width: 210px
     }
@@ -637,6 +720,11 @@ require './template/header.php';
   }
 
   @media(max-width:650px) {
+    .order-status-panel .status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+    .order-status-panel .status-list > div { padding: 12px 5px; font-size: 11px; }
+    .order-status-panel .status-list strong { font-size: 18px; }
+
+
     .admin-shell {
       display: block
     }
@@ -749,4 +837,15 @@ html,body{margin:0!important;padding:0!important;width:100%;max-width:100%;overf
 <style>
 /* Remove the empty strip above dashboard content */
 body:has(.admin-shell) .clear-fix,body:has(.admin-shell) .site-footer-spacer,body:has(.admin-shell) .pt-5{display:none!important}body:has(.admin-shell) .admin-shell{margin-top:0!important;padding-top:0!important}.admin-main{padding-top:0!important}.admin-topbar{margin-top:0!important;padding-top:30px!important}
+</style>
+<style>
+/* Nhận diện sidebar Admin đồng bộ */
+.admin-brand,.modern-admin-brand,.promo-admin-brand,.report-brand{display:flex!important;align-items:center;gap:10px!important;padding:0 10px 20px!important;border-bottom:1px solid #3b4149!important;min-width:0}.admin-brand>div,.modern-admin-brand>div,.promo-admin-brand>div,.report-brand>div{min-width:0;flex:1}
+.brand-mark,.modern-brand-mark,.promo-brand-mark,.report-brand-mark{width:38px!important;height:38px!important;min-width:38px;border-radius:10px!important;background:#f0b90b!important;color:#20242b!important;display:grid!important;place-items:center;font-size:18px;font-weight:800}
+.admin-brand strong,.modern-admin-brand strong,.promo-admin-brand strong,.report-brand b{display:block!important;color:#fff!important;font-size:15px!important;line-height:1.25!important;white-space:normal;overflow-wrap:anywhere}
+.admin-brand small,.modern-admin-brand small,.promo-admin-brand small,.report-brand small{display:block!important;color:#aeb5bf!important;font-size:12px!important;line-height:1.25!important;margin-top:4px!important;white-space:normal}
+@media(max-width:650px){.admin-brand,.modern-admin-brand,.promo-admin-brand,.report-brand{padding:4px 8px 14px!important;gap:12px!important}.brand-mark,.modern-brand-mark,.promo-brand-mark,.report-brand-mark{width:46px!important;height:46px!important;min-width:46px;border-radius:13px!important;font-size:22px}.admin-brand strong,.modern-admin-brand strong,.promo-admin-brand strong,.report-brand b{font-size:16px!important}.admin-brand small,.modern-admin-brand small,.promo-admin-brand small,.report-brand small{font-size:13px!important;margin-top:5px!important}}
+</style>
+<style>
+.stat-card>div{min-width:0}.stat-change{display:block;margin-top:6px;font-size:10px;font-style:normal;font-weight:700}.stat-change.up{color:#16a34a}.stat-change.down{color:#dc2626}.chart-filters{display:flex;gap:6px;margin:-4px 0 14px;flex-wrap:wrap}.chart-filters a{padding:6px 10px;border:1px solid #e2e8f0;border-radius:7px;color:#64748b;text-decoration:none;font-size:11px;font-weight:700;background:#fff}.chart-filters a:hover,.chart-filters a.active{background:#eef2ff;border-color:#4f46e5;color:#4f46e5}.top-book-info{display:flex;align-items:center;gap:9px}.top-book-info img{width:34px;height:46px;object-fit:cover;border-radius:4px;background:#f1f5f9}.top-book-info span{font-weight:650}.dashboard-bottom-grid{grid-template-columns:1fr;margin-top:20px}.alert-list a{display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid #f1f5f9;color:#334155;text-decoration:none;font-size:13px}.alert-list a:last-child{border-bottom:0}.alert-list a:hover{color:#4f46e5}.alert-list strong{margin-left:auto}.alert-list i{color:#94a3b8;font-size:11px}.alert-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}.alert-dot.danger{background:#ef4444}.alert-dot.warning{background:#f59e0b}
 </style>
