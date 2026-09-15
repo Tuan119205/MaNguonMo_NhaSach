@@ -58,6 +58,11 @@
       return array(false, 'Không thể cập nhật trạng thái đơn hàng.');
     }
 
+    if (!mysqli_query($conn, "DELETE FROM promotion_usages WHERE orderid = " . intval($orderid))) {
+      mysqli_rollback($conn);
+      return array(false, 'Không thể khôi phục mã khuyến mãi.');
+    }
+
     mysqli_commit($conn);
     return array(true, '');
   }
@@ -172,7 +177,6 @@
   }
 ?>
 
-<?php if ($isAdmin): ?>
 <div class="container py-4 orders-page <?php echo $isAdmin ? 'admin-orders-page' : 'user-orders-page'; ?>">
   <div class="row">
     <div class="col-12">
@@ -245,6 +249,7 @@
                       $statusKey = $order['order_status'] ?? 'chờ_xử_lý';
                       $statusInfo = $statusMap[$statusKey] ?? array('name' => 'Chờ xử lý', 'icon' => 'fa-hourglass-half', 'class' => 'warning', 'text_class' => 'text-dark');
                       $isCancellable = ($statusKey === 'chờ_xử_lý' || $statusKey === 'pending');
+                      $orderShippingFee = (strpos((string)($order['notes'] ?? ''), '[Mã giảm giá: FREESHIP]') !== false) ? 0 : 30000;
                     ?>
                     <article class="order-card">
                       <div class="order-cell order-code-cell" data-label="Mã đơn / Ngày đặt">
@@ -406,22 +411,23 @@
                                     <td colspan="3" class="text-end text-muted">Tạm tính:</td>
                                     <td class="text-end fw-semibold"><?php echo number_format($itemsSubtotal, 0, ',', '.'); ?>₫</td>
                                   </tr>
-                                  <?php $difference = $itemsSubtotal - (float)$order['amount']; ?>
-                                  <?php if (abs($difference) > 0.01): ?>
+                                  <?php $difference = $itemsSubtotal + $orderShippingFee - (float)$order['amount']; ?>
+                                  <?php if ($difference > 0.01): ?>
                                   <tr>
-                                    <?php if ($difference > 0): ?>
-                                      <td colspan="3" class="text-end text-success">Giảm giá / khuyến mãi:</td>
-                                      <td class="text-end fw-semibold text-success">-<?php echo number_format($difference, 0, ',', '.'); ?>₫</td>
-                                    <?php else: ?>
-                                      <td colspan="3" class="text-end text-muted">Phụ phí / điều chỉnh đơn:</td>
-                                      <td class="text-end fw-semibold text-muted">+<?php echo number_format(abs($difference), 0, ',', '.'); ?>₫</td>
-                                    <?php endif; ?>
+                                    <td colspan="3" class="text-end text-success">Giảm giá / khuyến mãi:</td>
+                                    <td class="text-end fw-semibold text-success">-<?php echo number_format($difference, 0, ',', '.'); ?>₫</td>
                                   </tr>
                                   <?php endif; ?>
                                   <tr>
                                     <td colspan="3" class="text-end text-muted">Phí vận chuyển:</td>
-                                    <td class="text-end text-success">Miễn phí</td>
+                                    <td class="text-end <?php echo $orderShippingFee > 0 ? 'text-dark' : 'text-success'; ?>"><?php echo $orderShippingFee > 0 ? number_format($orderShippingFee, 0, ',', '.') . 'đ' : 'Miễn phí'; ?></td>
                                   </tr>
+                                  <?php if ($difference < -0.01): ?>
+                                  <tr>
+                                    <td colspan="3" class="text-end text-muted">Phụ phí / điều chỉnh đơn:</td>
+                                    <td class="text-end fw-semibold text-muted">-<?php echo number_format(abs($difference), 0, ',', '.'); ?>₫</td>
+                                  </tr>
+                                  <?php endif; ?>
                                   <tr class="total-row">
                                     <td colspan="3" class="text-end fw-bold">Tổng thanh toán:</td>
                                     <td class="text-end fw-bold text-danger fs-6"><?php echo number_format($order['amount'], 0, ',', '.'); ?>₫</td>
@@ -493,7 +499,6 @@
 </div>
 <?php if ($isAdmin): ?>
 <?php admin_layout_end(); ?>
-<?php endif; ?>
 <?php endif; ?>
 
 <style>

@@ -57,9 +57,12 @@
 	$cartTotals = current_cart_totals($_SESSION['cart'] ?? array());
 	$cartTotal = $cartTotals['subtotal'];
 	$discountAmount = $cartTotals['discount'];
-	$discountPercent = (!empty($cartTotals['voucher']) && $cartTotals['voucher']['type'] === 'percent') ? $cartTotals['voucher']['value'] : 0;
+	$activeVoucher = $cartTotals['voucher'];
+	$shippingFee = $cartTotals['shipping'];
+	$discountLabel = $activeVoucher ? ($activeVoucher['type'] === 'percent' ? $activeVoucher['value'] . '%' : ($activeVoucher['type'] === 'fixed' ? 'cố định' : 'ưu đãi')) : '';
 	$voucherCode = $_SESSION['voucher_code'] ?? '';
 	$finalTotal = $cartTotals['total'];
+	$defaultPaymentMethod = (!empty($userAddresses[0]['payment_method']) && $userAddresses[0]['payment_method'] === 'transfer') ? 'bank_transfer' : 'cod';
 ?>
 <div class="container checkout-page py-4">
 	<div class="checkout-breadcrumb mb-3">
@@ -102,7 +105,8 @@
 											data-phone="<?php echo htmlspecialchars($addr['phone']); ?>"
 											data-address="<?php echo htmlspecialchars($addr['street_address']); ?>"
 											data-city="<?php echo htmlspecialchars($addr['city']); ?>"
-											data-zip="<?php echo htmlspecialchars($addr['postal_code']); ?>">
+											data-zip="<?php echo htmlspecialchars($addr['postal_code']); ?>"
+											data-country="<?php echo htmlspecialchars($addr['country']); ?>">
 										<div class="d-inline-block ms-2">
 											<div class="fw-bold text-dark">
 												<?php echo htmlspecialchars($addr['full_name']); ?>
@@ -138,7 +142,7 @@
 						<input type="hidden" name="address" id="ship_address" value="<?php echo htmlspecialchars($userAddresses[0]['street_address']); ?>">
 						<input type="hidden" name="city" id="ship_city" value="<?php echo htmlspecialchars($userAddresses[0]['city']); ?>">
 						<input type="hidden" name="zip_code" id="ship_zip_code" value="<?php echo htmlspecialchars($userAddresses[0]['postal_code'] ?? ''); ?>">
-						<input type="hidden" name="country" id="ship_country" value="Việt Nam">
+						<input type="hidden" name="country" id="ship_country" value="<?php echo htmlspecialchars($userAddresses[0]['country'] ?? 'Việt Nam'); ?>">
 
 						<!-- Custom Address Form (Collapsed by default) -->
 						<div id="custom-address-container" class="custom-address-form bg-light p-3 rounded-3 border mt-3" style="display: none;">
@@ -225,7 +229,7 @@
 					<div class="payment-methods-list">
 						<label class="payment-method-card d-block p-3 border rounded-3 mb-2 border-warning bg-light" style="cursor: pointer;">
 							<div class="form-check d-flex align-items-center">
-								<input class="form-check-input payment-radio me-3" type="radio" name="payment_method" value="cod" id="pay_cod" checked>
+								<input class="form-check-input payment-radio me-3" type="radio" name="payment_method" value="cod" id="pay_cod" <?php echo $defaultPaymentMethod === 'cod' ? 'checked' : ''; ?>>
 								<div class="flex-grow-1">
 									<div class="fw-bold text-dark d-flex align-items-center justify-content-between">
 										<span><i class="fa fa-truck text-warning me-2"></i>Thanh toán khi nhận hàng (COD)</span>
@@ -238,7 +242,7 @@
 
 						<label class="payment-method-card d-block p-3 border rounded-3 mb-2" style="cursor: pointer;">
 							<div class="form-check d-flex align-items-center">
-								<input class="form-check-input payment-radio me-3" type="radio" name="payment_method" value="bank_transfer" id="pay_transfer">
+								<input class="form-check-input payment-radio me-3" type="radio" name="payment_method" value="bank_transfer" id="pay_transfer" <?php echo $defaultPaymentMethod === 'bank_transfer' ? 'checked' : ''; ?>>
 								<div class="flex-grow-1">
 									<div class="fw-bold text-dark">
 										<i class="fa fa-university text-primary me-2"></i>Chuyển khoản ngân hàng (QR Code / Mobile Banking)
@@ -306,14 +310,14 @@
 
 						<?php if ($discountAmount > 0): ?>
 						<div class="d-flex justify-content-between text-success mb-2">
-							<span><i class="fa fa-tag me-1"></i>Giảm giá (<?php echo $discountPercent; ?>%<?php echo !empty($voucherCode) ? " - $voucherCode" : ''; ?>):</span>
+							<span><i class="fa fa-tag me-1"></i>Giảm giá (<?php echo htmlspecialchars($discountLabel); ?><?php echo !empty($voucherCode) ? " - " . htmlspecialchars($voucherCode) : ''; ?>):</span>
 							<span class="fw-bold">-<?php echo number_format($discountAmount, 0, ',', '.'); ?>đ</span>
 						</div>
 						<?php endif; ?>
 
 						<div class="d-flex justify-content-between text-muted mb-2">
 							<span>Phí giao hàng:</span>
-							<span class="text-success fw-bold">Miễn phí</span>
+							<span class="fw-bold <?php echo $shippingFee > 0 ? 'text-dark' : 'text-success'; ?>"><?php echo $shippingFee > 0 ? number_format($shippingFee, 0, ',', '.') . 'đ' : 'Miễn phí'; ?></span>
 						</div>
 
 						<hr class="my-3">
@@ -408,6 +412,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const hiddenAddress = document.getElementById('ship_address');
 	const hiddenCity = document.getElementById('ship_city');
 	const hiddenZip = document.getElementById('ship_zip_code');
+	const hiddenCountry = document.getElementById('ship_country');
 
 	const customName = document.getElementById('custom_name');
 	const customPhone = document.getElementById('custom_phone');
@@ -436,6 +441,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				if (hiddenAddress) hiddenAddress.value = customAddress ? customAddress.value : '';
 				if (hiddenCity) hiddenCity.value = customCity ? customCity.value : '';
 				if (hiddenZip) hiddenZip.value = customZip ? customZip.value : '';
+				if (hiddenCountry) hiddenCountry.value = 'Việt Nam';
 			} else {
 				if (customContainer) customContainer.style.display = 'none';
 				if (hiddenName) hiddenName.value = this.dataset.name || '';
@@ -443,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				if (hiddenAddress) hiddenAddress.value = this.dataset.address || '';
 				if (hiddenCity) hiddenCity.value = this.dataset.city || '';
 				if (hiddenZip) hiddenZip.value = this.dataset.zip || '';
+				if (hiddenCountry) hiddenCountry.value = this.dataset.country || 'Việt Nam';
 			}
 		});
 	});

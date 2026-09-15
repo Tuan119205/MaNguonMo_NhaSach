@@ -125,6 +125,19 @@
           ('WEEKEND','Ưu đãi cuối tuần','percent',15,50000,'2026-12-30',1)");
       }
 
+      mysqli_query($conn, "CREATE TABLE IF NOT EXISTS promotion_usages (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        promotion_id INT UNSIGNED NOT NULL,
+        userid INT UNSIGNED NOT NULL,
+        orderid INT UNSIGNED NOT NULL,
+        used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_promotion_user (promotion_id, userid),
+        UNIQUE KEY uq_promotion_order (promotion_id, orderid),
+        KEY idx_promotion_usage_user (userid),
+        KEY idx_promotion_usage_order (orderid)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
       // Migration 9: Tables for the shared user/admin chatbot.
       mysqli_query($conn, "CREATE TABLE IF NOT EXISTS chatbot_settings (
         id TINYINT UNSIGNED NOT NULL PRIMARY KEY,

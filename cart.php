@@ -36,11 +36,13 @@ total_price => '0.00'
 			// Recalculate totals
 			$_SESSION['total_price'] = total_price($_SESSION['cart']);
 			$_SESSION['total_items'] = total_items($_SESSION['cart']);
+			$updatedTotals = current_cart_totals($_SESSION['cart']);
 
 			echo json_encode([
 				'success' => true,
 				'total_items' => $_SESSION['total_items'],
 				'total_price' => number_format($_SESSION['total_price'], 0, ',', '.'),
+				'final_total' => number_format($updatedTotals['total'], 0, ',', '.'),
 				'line_total' => number_format($lineTotal, 0, ',', '.'),
 				'message' => 'Cập nhật thành công'
 			]);
@@ -75,73 +77,26 @@ total_price => '0.00'
 			exit;
 		}
 
-		// Voucher database with type-based validation
-		$valid_vouchers = array(
-			'SAVE10' => array('type' => 'percent', 'value' => 10, 'min_order' => 0),      // 10% discount
-			'SAVE20' => array('type' => 'percent', 'value' => 20, 'min_order' => 100000), // 20% discount, min 100k
-			'FIRST50' => array('type' => 'fixed', 'value' => 50000, 'min_order' => 0),   // Fixed 50k discount
-			'BOOK5OFF' => array('type' => 'percent', 'value' => 25, 'min_order' => 250000), // 25% discount, min 250k
-			'FREESHIP' => array('type' => 'shipping', 'value' => 0, 'min_order' => 0),   // Free shipping
-			'WEEKEND' => array('type' => 'percent', 'value' => 15, 'min_order' => 50000)  // 15% discount, min 50k
-		);
-
-		if (array_key_exists($voucher_code, $valid_vouchers)) {
-			$voucher = $valid_vouchers[$voucher_code];
-
-			// Check minimum order requirement
-			if ($_SESSION['total_price'] < $voucher['min_order']) {
-				$min_required = number_format($voucher['min_order'], 0, ',', '.');
-				echo json_encode([
-					'success' => false,
-					'message' => 'Mã giảm giá yêu cầu tối thiểu đơn hàng ' . $min_required . 'đ'
-				]);
-				exit;
-			}
-
-			// Calculate discount based on type
-			$discount_amount = 0;
-			$discount_percent = 0;
-
-			if ($voucher['type'] == 'percent') {
-				$discount_percent = $voucher['value'];
-				$discount_amount = ($_SESSION['total_price'] * $voucher['value']) / 100;
-			} elseif ($voucher['type'] == 'fixed') {
-				$discount_amount = $voucher['value'];
-				$discount_percent = ($discount_amount / $_SESSION['total_price']) * 100;
-			} elseif ($voucher['type'] == 'shipping') {
-				$discount_amount = 0;
-				$discount_percent = 0;
-			}
-
-			$_SESSION['voucher_code'] = $voucher_code;
-			$_SESSION['discount_percent'] = $discount_percent;
-			$_SESSION['voucher_type'] = $voucher['type'];
-
-			$final_price = $_SESSION['total_price'] - $discount_amount;
-
-			$message = '';
-			if ($voucher['type'] == 'percent') {
-				$message = 'Áp dụng mã giảm ' . $voucher['value'] . '% thành công!';
-			} elseif ($voucher['type'] == 'fixed') {
-				$message = 'Áp dụng mã giảm ' . number_format($voucher['value'], 0, ',', '.') . 'đ thành công!';
-			} elseif ($voucher['type'] == 'shipping') {
-				$message = 'Áp dụng mã miễn phí vận chuyển thành công!';
-			}
-
-			echo json_encode([
-				'success' => true,
-				'discount_percent' => $discount_percent,
-				'discount_amount' => number_format($discount_amount, 0, ',', '.'),
-				'final_price' => number_format($final_price, 0, ',', '.'),
-				'voucher_type' => $voucher['type'],
-				'message' => $message
-			]);
-		} else {
-			echo json_encode([
-				'success' => false,
-				'message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn'
-			]);
+		$voucherResult = calculate_voucher_discount($voucher_code, (float)$_SESSION['total_price'], $_SESSION['cart'], (int)($_SESSION['userid'] ?? 0));
+		if (!$voucherResult['valid']) {
+			echo json_encode(['success' => false, 'message' => $voucherResult['message']]);
+			exit;
 		}
+
+		$_SESSION['voucher_code'] = $voucherResult['code'];
+		$_SESSION['voucher_type'] = $voucherResult['type'];
+		$_SESSION['discount_percent'] = $voucherResult['type'] === 'percent' ? (float)$voucherResult['value'] : 0;
+		$discountAmount = (float)$voucherResult['discount'];
+		$finalPrice = max(0, (float)$_SESSION['total_price'] - $discountAmount);
+
+		echo json_encode([
+			'success' => true,
+			'discount_percent' => $_SESSION['discount_percent'],
+			'discount_amount' => number_format($discountAmount, 0, ',', '.'),
+			'final_price' => number_format($finalPrice, 0, ',', '.'),
+			'voucher_type' => $voucherResult['type'],
+			'message' => $voucherResult['message']
+		]);
 		exit;
 	}
 
@@ -161,11 +116,13 @@ total_price => '0.00'
 				$_SESSION['total_price'] = '0.00';
 				$_SESSION['total_items'] = 0;
 			}
+			$updatedTotals = current_cart_totals($_SESSION['cart']);
 
 			echo json_encode([
 				'success' => true,
 				'total_items' => $_SESSION['total_items'],
 				'total_price' => number_format($_SESSION['total_price'], 0, ',', '.'),
+				'final_total' => number_format($updatedTotals['total'], 0, ',', '.'),
 				'message' => 'Đã xóa khỏi giỏ hàng'
 			]);
 		} else {
@@ -297,24 +254,27 @@ if (isset($_SESSION['cart']) && (array_count_values($_SESSION['cart']))) {
 					</div>
 
 					<?php
-					$final_total = $_SESSION['total_price'];
-					if (isset($_SESSION['voucher_code']) && isset($_SESSION['discount_percent'])):
-						$discount = ($_SESSION['total_price'] * $_SESSION['discount_percent']) / 100;
-						$final_total = $_SESSION['total_price'] - $discount;
+					$cartTotals = current_cart_totals($_SESSION['cart']);
+					$final_total = $cartTotals['total'];
+					$discount = $cartTotals['discount'];
+					$activeVoucher = $cartTotals['voucher'];
+					if ($activeVoucher):
 					?>
+						<?php if ($discount > 0): ?>
 						<div class="summary-line discount-line" id="discount-line">
-							<span>Giảm giá (<?php echo $_SESSION['discount_percent']; ?>%)</span>
+							<span>Giảm giá (<?php echo $activeVoucher['type'] === 'percent' ? $activeVoucher['value'] . '%' : ($activeVoucher['type'] === 'fixed' ? 'cố định' : 'ưu đãi'); ?>)</span>
 							<strong class="discount-value">-<?php echo number_format($discount, 0, ',', '.'); ?>đ</strong>
 						</div>
+						<?php endif; ?>
 						<div class="summary-line voucher-applied">
-							<span>Mã: <strong><?php echo htmlspecialchars($_SESSION['voucher_code']); ?></strong></span>
+							<span>Mã: <strong><?php echo htmlspecialchars($activeVoucher['code']); ?></strong></span>
 							<button type="button" class="remove-voucher-btn" title="Hủy mã giảm giá">×</button>
 						</div>
 					<?php endif; ?>
 
 					<div class="summary-line discount-line">
 						<span>Phí vận chuyển</span>
-						<strong class="free-text">Miễn phí</strong>
+						<strong class="free-text"><?php echo $cartTotals['shipping'] > 0 ? number_format($cartTotals['shipping'], 0, ',', '.') . 'đ' : 'Miễn phí'; ?></strong>
 					</div>
 					<div class="summary-total">
 						<span>Tổng cộng</span>
@@ -322,10 +282,14 @@ if (isset($_SESSION['cart']) && (array_count_values($_SESSION['cart']))) {
 					</div>
 
 					<div class="voucher-section">
+						<?php if (!$activeVoucher): ?>
 						<div class="voucher-input-group">
 							<input type="text" id="voucher-code" placeholder="Nhập mã giảm giá" class="voucher-input" maxlength="50">
 							<button type="button" id="apply-voucher-btn" class="apply-voucher-btn">Áp dụng</button>
 						</div>
+						<?php else: ?>
+						<div class="voucher-message success">Mã giảm giá đã được áp dụng. Bạn không cần nhập lại khi thanh toán.</div>
+						<?php endif; ?>
 						<div id="voucher-message" class="voucher-message"></div>
 					</div>
 
@@ -357,7 +321,12 @@ if (isset($_SESSION['cart']) && (array_count_values($_SESSION['cart']))) {
 } else {
 ?>
 	<div class="container cart-page empty-page">
-		<div class="alert alert-warning rounded-4">Giỏ hàng của bạn đang trống. Hãy thêm ít nhất 1 cuốn sách để mua sắm.</div>
+		<div class="empty-cart-state">
+			<div class="empty-cart-icon"><i class="fa-solid fa-cart-shopping"></i></div>
+			<h2>Giỏ hàng đang trống</h2>
+			<p>Hãy khám phá những cuốn sách yêu thích và thêm sản phẩm vào giỏ hàng nhé.</p>
+			<a href="books.php" class="empty-cart-button"><i class="fa-solid fa-book-open"></i> Khám phá sách</a>
+		</div>
 	</div>
 <?php
 }
@@ -824,6 +793,63 @@ require_once "./template/footer.php";
 	padding-top: 0;
 	}
 
+	.empty-cart-state {
+		max-width: 680px;
+		margin: 36px auto 40px;
+		padding: 52px 24px;
+		text-align: center;
+		background: #fff;
+		border: 1px solid #b8d3f2;
+		border-radius: 18px;
+		box-shadow: 0 10px 26px rgba(83, 125, 180, .1);
+	}
+
+	.empty-cart-icon {
+		display: grid;
+		place-items: center;
+		width: 76px;
+		height: 76px;
+		margin: 0 auto 18px;
+		border-radius: 50%;
+		background: #fff4cc;
+		color: #e3a900;
+		font-size: 2rem;
+	}
+
+	.empty-cart-state h2 {
+		margin: 0 0 10px;
+		color: #1f2937;
+		font-size: 1.55rem;
+		font-weight: 800;
+	}
+
+	.empty-cart-state p {
+		max-width: 460px;
+		margin: 0 auto 24px;
+		color: #64748b;
+		line-height: 1.6;
+	}
+
+	.empty-cart-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 11px 20px;
+		border-radius: 10px;
+		background: #f0b90b;
+		color: #20242b;
+		font-weight: 800;
+		text-decoration: none;
+		transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+	}
+
+	.empty-cart-button:hover {
+		background: #e3a900;
+		color: #20242b;
+		transform: translateY(-2px);
+		box-shadow: 0 8px 16px rgba(227, 169, 0, .22);
+	}
+
 	@media (max-width: 991px) {
 		.cart-list-header {
 			display: none;
@@ -917,7 +943,7 @@ require_once "./template/footer.php";
 						totalCell.textContent = data.line_total + 'đ';
 					}
 
-					updateCartDisplay(data.total_items, data.total_price);
+					updateCartDisplay(data.total_items, data.total_price, data.final_total);
 				} else {
 					alert(data.message || 'Lỗi cập nhật giỏ hàng');
 				}
@@ -951,7 +977,7 @@ require_once "./template/footer.php";
 						if (voucherApplied) voucherApplied.remove();
 
 						// Update cart display
-						updateCartDisplay(data.total_items, data.total_price);
+						updateCartDisplay(data.total_items, data.total_price, data.final_total);
 
 						// Check if cart is empty
 						if (data.total_items === 0) {
@@ -985,7 +1011,7 @@ require_once "./template/footer.php";
 		}
 	}
 
-	function updateCartDisplay(totalItems, totalPrice) {
+	function updateCartDisplay(totalItems, totalPrice, finalTotal) {
 		// Update cart count in header
 		const cartCounts = document.querySelectorAll('.cart-count');
 		const cartAlertSpan = document.querySelector('.cart-alert strong');
@@ -997,7 +1023,7 @@ require_once "./template/footer.php";
 		const summaryLines = document.querySelectorAll('.summary-total strong');
 		const summaryLines2 = document.querySelectorAll('.summary-line:first-of-type strong');
 
-		summaryLines.forEach(el => el.textContent = totalPrice + 'đ');
+		summaryLines.forEach(el => el.textContent = (finalTotal || totalPrice) + 'đ');
 		summaryLines2.forEach(el => el.textContent = totalPrice + 'đ');
 
 		// Reset voucher display if cart is updated

@@ -59,7 +59,7 @@ $lowStock = admin_count($conn, "SELECT COUNT(*) FROM books WHERE inventory > 0 A
 $topBooks = array();
 $topResult = mysqli_query($conn, "SELECT b.book_title,b.book_image,COALESCE(SUM(oi.quantity),0) sold,COALESCE(SUM(oi.quantity*oi.item_price),0) revenue FROM order_items oi INNER JOIN books b ON b.book_isbn=oi.book_isbn INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.date >= DATE_FORMAT(CURDATE(), '%Y-01-01') AND o.date < DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND o.$validOrders GROUP BY b.book_isbn,b.book_title,b.book_image ORDER BY sold DESC, revenue DESC LIMIT 5");
 if ($topResult) while ($row = mysqli_fetch_assoc($topResult)) $topBooks[] = $row;
-$recentOrders = array(); $recentResult = mysqli_query($conn, "SELECT orderid,ship_name,amount,order_status,date FROM orders ORDER BY date DESC,orderid DESC LIMIT 8"); if ($recentResult) while ($row = mysqli_fetch_assoc($recentResult)) $recentOrders[] = $row;
+$recentOrders = array(); $recentResult = mysqli_query($conn, "SELECT orderid,ship_name,amount,order_status,date FROM orders ORDER BY date DESC,orderid DESC LIMIT 5"); if ($recentResult) while ($row = mysqli_fetch_assoc($recentResult)) $recentOrders[] = $row;
 $chartLabels = $chartRevenue = array();
 $chartKeys = array();
 $chartStart = new DateTime($range === 'year' ? date('Y-01-01') : ($range === 'month' ? date('Y-m-01') : '-' . ($range === '7days' ? '6' : '29') . ' days'));
@@ -98,9 +98,7 @@ require './template/header.php';
   </aside>
   <main class="admin-main">
     <div class="admin-topbar">
-      <div><span class="eyebrow">TỔNG QUAN HỆ THỐNG</span>
-        <h1>Dashboard</h1>
-      </div>
+      <div><h1>Dashboard</h1></div>
       <div class="admin-header-tools"></div>
     </div>
     <section class="stat-grid">
@@ -167,7 +165,7 @@ require './template/header.php';
         <div class="panel-heading">
           <div>
             <h2>Đơn hàng gần đây</h2>
-            <p>8 đơn mới nhất</p>
+            <p>5 đơn mới nhất</p>
           </div><a href="orders.php" class="panel-link">Xem tất cả</a>
         </div>
         <div class="recent-list"><?php if (!$recentOrders): ?><div class="empty">Chưa có đơn hàng</div><?php else: foreach ($recentOrders as $order): $status = $order['order_status'] ?? 'chờ_xử_lý';
@@ -528,6 +526,31 @@ require './template/header.php';
 
   .book-name {
     font-weight: 650
+  }
+
+  .lower-grid .admin-table th:first-child,
+  .lower-grid .admin-table td:first-child {
+    width: 36px;
+    padding-right: 2px;
+  }
+
+  .lower-grid .admin-table th:nth-child(2),
+  .lower-grid .admin-table td:nth-child(2) {
+    padding-left: 2px;
+  }
+
+  .lower-grid .admin-table th:nth-child(3),
+  .lower-grid .admin-table td:nth-child(3) {
+    width: 72px;
+    padding-right: 2px;
+    white-space: nowrap;
+  }
+
+  .lower-grid .admin-table th:nth-child(4),
+  .lower-grid .admin-table td:nth-child(4) {
+    width: 96px;
+    padding-left: 2px;
+    white-space: nowrap;
   }
 
   .money {

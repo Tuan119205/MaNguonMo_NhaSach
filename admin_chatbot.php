@@ -187,5 +187,49 @@ admin_layout_start('admin_chatbot', '', '');
 .customer-filter{margin-top:2px}.customer-filter input{height:40px;box-sizing:border-box}.customer-filter button{height:40px;background:#20242b;color:#fff;cursor:pointer}.chatbot-customer-link{display:inline-flex;align-items:center;gap:7px;font-size:13px}.chatbot-customer-link:before{content:'\\f007';font-family:'Font Awesome 6 Free';font-weight:900;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#eef2ff;color:#4f46e5;font-size:11px}.chatbot-detail-panel{background:#fbfcff!important}.chatbot-detail-summary>div{background:#fff}.chatbot-session-card{background:#fff;transition:.18s ease}.chatbot-session-card:hover,.chatbot-session-card.selected{border-color:#a5b4fc;box-shadow:0 5px 14px rgba(79,70,229,.07)}
 @media(max-width:900px){.chatbot-knowledge-form{grid-template-columns:1fr 1fr}.chatbot-knowledge-form label:nth-child(2){grid-column:span 2}}
 @media(max-width:700px){.admin-chatbot-page>.admin-panel{padding:17px}.chatbot-hero{padding:19px}.chatbot-hero h2{font-size:21px}.admin-chatbot-stats{grid-template-columns:1fr}.chatbot-permissions-two{grid-template-columns:1fr}.chatbot-knowledge-form{grid-template-columns:1fr}.chatbot-knowledge-form label:nth-child(2){grid-column:auto}.chatbot-filter form,.customer-filter{align-items:stretch}.chatbot-filter input,.chatbot-filter select,.chatbot-filter button,.customer-filter input,.customer-filter button{width:100%;min-width:0}.chatbot-table{min-width:760px}}
+
+/* Màu viền nhẹ để giao diện bớt trắng */
+.admin-chatbot-page{background:#f8f7ff;padding:14px;border:1px solid #d9d2f2;border-radius:18px}
+.admin-chatbot-page>.admin-panel,.chatbot-stat{border-color:#c9c1e8;background:#fffdfd}
+.admin-chatbot-page>.admin-panel:hover,.chatbot-stat:hover{border-color:#a99bdd}
+.chatbot-section-heading{border-bottom-color:#ded8f3}
+.chatbot-table-wrap{border-color:#d5cdec}
+.chatbot-table th{background:#f2efff;border-bottom-color:#d5cdec}
+.chatbot-table td{border-bottom-color:#eeeaf8}
+.chatbot-permissions label{border-color:#d5cdec;background:#fbfaff}
+.chatbot-permissions label:hover{border-color:#a99bdd;background:#f4f1ff}
+.chatbot-knowledge-form{border-color:#d5cdec;background:#f5f2ff}
+.chatbot-knowledge-form input,.chatbot-knowledge-form textarea,.chatbot-filter input,.chatbot-filter select,.customer-filter input{border-color:#cfc6ea}
+.chatbot-filter select,.chatbot-filter button,.customer-filter button{border-color:#cfc6ea;background:#f4f1ff}
+.chatbot-detail-panel{background:#f6f3ff!important;border-color:#c9c1e8!important}
+.chatbot-detail-summary>div,.chatbot-conversation-view{border-color:#d5cdec;background:#fbfaff}
+.chatbot-session-card{border-color:#d5cdec;background:#fffdfd}
+.chatbot-session-card:hover,.chatbot-session-card.selected{border-color:#9d8fe0;background:#f4f1ff}
+
+/* Tô màu sáng hơn để phân biệt rõ từng khu vực */
+.admin-chatbot-page{background:#f1efff;border-color:#bdb2ed}
+.admin-chatbot-page>.admin-panel{background:#fff!important;border-color:#b9afe4!important;box-shadow:0 6px 18px rgba(91,74,170,.09)}
+.admin-chatbot-page>.admin-panel:nth-of-type(2){background:#f0f7ff!important;border-color:#a9ccef!important}
+.admin-chatbot-page>.admin-panel:nth-of-type(3){background:#fff8e8!important;border-color:#f0cd82!important}
+.admin-chatbot-page>.admin-panel:nth-of-type(4){background:#edfff5!important;border-color:#a8d9ba!important}
+.admin-chatbot-page>.admin-panel:nth-of-type(5){background:#fff0f6!important;border-color:#e8b4cb!important}
+.admin-chatbot-stats .chatbot-stat:nth-child(1){background:#e9f3ff;border-color:#9fc7ee}
+.admin-chatbot-stats .chatbot-stat:nth-child(2){background:#fff6df;border-color:#edca79}
+.admin-chatbot-stats .chatbot-stat:nth-child(3){background:#eafbf2;border-color:#a7d9ba}
+.admin-chatbot-stats .chatbot-stat-icon{background:#dbeafe}
+.admin-chatbot-stats .chatbot-stat:nth-child(2) .chatbot-stat-icon{background:#ffedb5;color:#a16207}
+.admin-chatbot-stats .chatbot-stat:nth-child(3) .chatbot-stat-icon{background:#c9f3d9;color:#15803d}
+.chatbot-section-heading{border-bottom-color:rgba(79,70,229,.2)}
+.chatbot-table-wrap{background:rgba(255,255,255,.72);border-color:#b8c7e8}
+.chatbot-table th{background:#e5efff;color:#435477;border-bottom-color:#b8c7e8}
+.chatbot-table tbody tr:nth-child(even){background:rgba(255,255,255,.58)}
+.chatbot-permissions label{background:#fff;border-color:#aec8e8}
+.chatbot-permissions label:first-child{background:#e8f3ff;border-color:#9fc7ee}
+.chatbot-permissions label:last-child{background:#fff5dc;border-color:#edca79}
+.chatbot-knowledge-form{background:#fff8e8;border-color:#edca79}
+.chatbot-detail-summary>div{background:#fff;border-color:#c5b9e8}
+.chatbot-conversation-view{background:#eef5ff;border-color:#a9ccef}
+.chatbot-session-card{background:#fff;border-color:#b8c7e8}
+.chatbot-session-card:hover,.chatbot-session-card.selected{background:#e9f3ff;border-color:#7da9df}
 </style>
 <?php admin_layout_end(); require './template/footer.php'; ?>

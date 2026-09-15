@@ -24,11 +24,7 @@
 		UNIQUE KEY uq_genre_name (genre_name)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-		$genres = ['Truyện tranh', 'Văn học Việt Nam', 'Văn học nước ngoài', 'Manga', 'Sách thanh niên'];
-		foreach ($genres as $genreName) {
-		$escapedName = mysqli_real_escape_string($conn, $genreName);
-		mysqli_query($conn, "INSERT IGNORE INTO genres (genre_name) VALUES ('$escapedName')");
-		}
+		
 
 		$result = mysqli_query($conn, "SHOW COLUMNS FROM books LIKE 'genre_id'");
 		if ($result && mysqli_num_rows($result) === 0) {

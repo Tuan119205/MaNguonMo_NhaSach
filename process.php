@@ -104,12 +104,27 @@
 		$cartTotal = $cartTotals['subtotal'];
 		$discountAmount = $cartTotals['discount'];
 		$totalAmount = $cartTotals['total'];
+		$shippingFee = $cartTotals['shipping'];
 		$date = date("Y-m-d H:i:s");
 
 		// Insert into orders table
 		$createdOrderId = insertIntoOrder($conn, $userid, $totalAmount, $date, $name, $address, $city, $zip_code, $country, $payment_method, 'chờ_xử_lý', $phone, $notes);
 
 		if ($createdOrderId > 0) {
+			if (!empty($cartTotals['voucher']['promotion_id'])) {
+				$promotionId = (int)$cartTotals['voucher']['promotion_id'];
+				$usageQuery = "INSERT INTO promotion_usages (promotion_id, userid, orderid) VALUES ($promotionId, $userid, $createdOrderId)";
+				if (!mysqli_query($conn, $usageQuery)) {
+					mysqli_rollback($conn);
+					$createdOrderId = 0;
+				}
+			}
+			if ($createdOrderId <= 0) {
+				echo '<div class="container py-5"><div class="alert alert-warning rounded-4">Mã giảm giá này đã được tài khoản sử dụng hoặc không còn hợp lệ. Vui lòng quay lại giỏ hàng.</div></div>';
+				if(isset($conn)){ mysqli_close($conn); }
+				require_once "./template/footer.php";
+				exit;
+			}
 			// Insert each item into order_items
 			foreach ($cartItems as $cartItem) {
 	$isbn = $cartItem['isbn'];
@@ -310,7 +325,7 @@
 								<?php endif; ?>
 								<tr>
 									<td colspan="3" class="text-end text-muted">Phí giao hàng:</td>
-									<td class="text-end fw-bold text-success">Miễn phí</td>
+									<td class="text-end fw-bold <?php echo $shippingFee > 0 ? 'text-dark' : 'text-success'; ?>"><?php echo $shippingFee > 0 ? number_format($shippingFee, 0, ',', '.') . 'đ' : 'Miễn phí'; ?></td>
 								</tr>
 								<tr class="table-warning">
 									<td colspan="3" class="text-end fw-bold fs-6">Tổng thanh toán:</td>

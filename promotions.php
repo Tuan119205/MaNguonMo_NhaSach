@@ -11,7 +11,9 @@ require "./template/header.php";
 
 // Promotions are managed by Admin and read from the database.
 $promotions = array();
-$promotionResult = mysqli_query($conn, "SELECT * FROM promotions WHERE active = 1 AND expires_at >= CURDATE() ORDER BY id DESC");
+$promotionUserId = !empty($_SESSION['user']) && !empty($_SESSION['userid']) ? (int)$_SESSION['userid'] : 0;
+$promotionUsageFilter = $promotionUserId > 0 ? " AND NOT EXISTS (SELECT 1 FROM promotion_usages pu WHERE pu.promotion_id = promotions.id AND pu.userid = $promotionUserId)" : '';
+$promotionResult = mysqli_query($conn, "SELECT * FROM promotions WHERE active = 1 AND expires_at >= CURDATE()$promotionUsageFilter ORDER BY id DESC");
 if ($promotionResult) {
     while ($promotion = mysqli_fetch_assoc($promotionResult)) {
         $promotions[] = array(
@@ -99,6 +101,7 @@ if ($promotionResult) {
 ?>
 
 <div class="container promotions-page">
+    <?php if (!empty($_SESSION['admin'])): ?>
     <div class="page-header">
         <h1 class="page-title">
             <i class="fa fa-tag"></i>
@@ -106,6 +109,7 @@ if ($promotionResult) {
         </h1>
         <p class="page-subtitle">Khám phá các ưu đãi đặc biệt dành cho bạn</p>
     </div>
+    <?php endif; ?>
 
     <div class="promotions-banner">
         <div class="banner-content">

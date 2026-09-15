@@ -31,11 +31,59 @@ $context = trim((string)($_POST['context'] ?? ''));
 if ($message === '' || mb_strlen($message) > 1000) chatbot_json(['success' => false, 'message' => 'Vui lòng nhập câu hỏi ngắn hơn.'], 422);
 
 $role = chatbot_role();
-$permissionField = $role === 'USER' ? 'allow_user' : 'allow_guest';
-if ($role !== 'ADMIN' && !chatbot_setting($conn, $permissionField, 1)) chatbot_json(['success' => false, 'message' => 'Chatbot hiện đang tạm tắt cho tài khoản của bạn.'], 403);
+$permissionField = $role === 'USER' ? 'allow_user' : ($role === 'ADMIN' ? 'allow_admin' : 'allow_guest');
+if (!chatbot_setting($conn, $permissionField, 1)) chatbot_json(['success' => false, 'message' => 'Chatbot hiện đang tạm tắt cho tài khoản của bạn.'], 403);
 
 $text = mb_strtolower($message, 'UTF-8');
 $response = '';
+$buttons = [];
+$items = [];
+
+function chatbot_status_label($status) {
+    $map = ['chờ_xử_lý' => '⏳ Chờ xác nhận', 'pending' => '⏳ Chờ xác nhận', 'đang_giao' => '🚚 Đang giao', 'shipping' => '🚚 Đang giao', 'đã_giao' => '✅ Đã giao', 'delivered' => '✅ Đã giao', 'đã_hủy' => '❌ Đã hủy', 'cancelled' => '❌ Đã hủy'];
+    return $map[$status] ?? ($status ?: '⏳ Chờ xử lý');
+}
+function chatbot_book_lines($result, &$items, $ranked = false) {
+    $count = 0;
+    while ($result && ($row = mysqli_fetch_assoc($result)) && $count < 5) {
+        $line = ($ranked ? ($count + 1) . '. ' : '📕 ') . $row['book_title'] . ' — ' . ($row['book_author'] ?: 'Chưa cập nhật') . ' — ' . chatbot_money($row['book_price']) . ' — ' . ((int)($row['inventory'] ?? 0) > 0 ? 'Còn hàng' : 'Hết hàng');
+        if (isset($row['sold'])) $line .= ' — Đã bán: ' . (int)$row['sold'];
+        $items[] = $line;
+        $count++;
+    }
+    return $count;
+}
+
+if (preg_match('/(danh mục|danh muc|thể loại|the loai)/u', $text)) {
+    $result = mysqli_query($conn, 'SELECT genre_id, genre_name FROM genres ORDER BY genre_name ASC');
+    while ($result && ($row = mysqli_fetch_assoc($result))) {
+        $items[] = '📖 ' . $row['genre_name'];
+        $buttons[] = ['label' => $row['genre_name'], 'question' => 'Tìm sách ' . $row['genre_name']];
+    }
+    $response = $items ? "📚 Nhà sách hiện có các danh mục:\n" . implode("\n", $items) . "\n\nBạn muốn xem danh mục nào?" : 'Hiện chưa có danh mục sách trong database.';
+    if ($items) $buttons[] = ['label' => '📚 Xem tất cả sách', 'question' => 'Xem tất cả sách'];
+} elseif (preg_match('/(bán chạy|ban chay)/u', $text)) {
+    $result = mysqli_query($conn, "SELECT b.book_title,b.book_author,b.book_price,b.inventory,SUM(oi.quantity) sold FROM order_items oi INNER JOIN books b ON b.book_isbn=oi.book_isbn INNER JOIN orders o ON o.orderid=oi.orderid WHERE o.order_status NOT IN ('đã_hủy','đã hủy','cancelled') GROUP BY b.book_isbn,b.book_title,b.book_author,b.book_price,b.inventory ORDER BY sold DESC LIMIT 5");
+    chatbot_book_lines($result, $items, true);
+    $response = $items ? "🔥 TOP sách bán chạy:\n" . implode("\n", $items) : 'Chưa có dữ liệu bán hàng để xếp hạng sách.';
+} elseif (preg_match('/(mới nhất|moi nhat|sách mới|sach moi)/u', $text)) {
+    $result = mysqli_query($conn, 'SELECT book_title,book_author,book_price,inventory FROM books ORDER BY created_at DESC LIMIT 5');
+    chatbot_book_lines($result, $items);
+    $response = $items ? "🆕 Sách mới nhất:\n" . implode("\n", $items) : 'Chưa có sách mới trong database.';
+} elseif (preg_match('/(giỏ hàng|gio hang)/u', $text)) {
+    if ($role !== 'USER') $response = 'Bạn cần đăng nhập để xem giỏ hàng của mình.';
+    else {
+        $cart = $_SESSION['cart'] ?? [];
+        $total = 0;
+        foreach ($cart as $isbn => $qty) {
+            $stmt = mysqli_prepare($conn, 'SELECT book_title, book_price FROM books WHERE book_isbn = ? LIMIT 1');
+            mysqli_stmt_bind_param($stmt, 's', $isbn); mysqli_stmt_execute($stmt);
+            $book = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+            if ($book) { $lineTotal = (float)$book['book_price'] * (int)$qty; $total += $lineTotal; $items[] = '📕 ' . $book['book_title'] . ' × ' . (int)$qty . ' — ' . chatbot_money($lineTotal); }
+        }
+        $response = $items ? "🛒 Giỏ hàng của bạn:\n" . implode("\n", $items) . "\n💵 Tổng giỏ hàng: " . chatbot_money($total) : 'Giỏ hàng của bạn đang trống.';
+    }
+}
 
 $knowledgeStmt = mysqli_prepare($conn, "SELECT answer FROM chatbot_knowledge WHERE status = 1 AND (question LIKE ? OR answer LIKE ?) ORDER BY id DESC LIMIT 1");
 if ($knowledgeStmt) {
@@ -47,7 +95,7 @@ if ($knowledgeStmt) {
     if ($knowledge) $response = $knowledge['answer'];
 }
 
-if ($response === '' && preg_match('/(đơn hàng|don hang|order|giao|trạng thái đơn|trang thai don)/u', $text)) {
+if ($response === '' && preg_match('/(đơn hàng|don hang|order|theo dõi đơn|theo doi don|trạng thái đơn|trang thai don)/u', $text)) {
     if ($role === 'GUEST') {
         $response = 'Bạn cần đăng nhập để tôi kiểm tra đơn hàng của bạn.';
     } elseif ($role === 'ADMIN') {
@@ -115,9 +163,9 @@ if ($response === '' && preg_match('/(giá|gia|còn hàng|con hang|tồn kho|ton
     if ($response !== '') {
         // Đã trả lời theo sản phẩm hiện tại, không cần truy vấn tìm kiếm thêm.
     } else {
-    $stmt = mysqli_prepare($conn, "SELECT book_title, book_author, book_price, inventory FROM books WHERE book_title LIKE ? OR book_author LIKE ? LIMIT 5");
+    $stmt = mysqli_prepare($conn, "SELECT b.book_title, b.book_author, b.book_price, b.inventory FROM books b LEFT JOIN genres g ON g.genre_id = b.genre_id WHERE b.book_title LIKE ? OR b.book_author LIKE ? OR g.genre_name LIKE ? LIMIT 5");
     $like = chatbot_like($search);
-    mysqli_stmt_bind_param($stmt, 'ss', $like, $like);
+    mysqli_stmt_bind_param($stmt, 'sss', $like, $like, $like);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $items = [];
@@ -136,4 +184,4 @@ if ($logStmt) {
     mysqli_stmt_bind_param($logStmt, 'sissss', $sessionKey, $userid, $role, $message, $response, $context);
     mysqli_stmt_execute($logStmt);
 }
-chatbot_json(['success' => true, 'message' => $response, 'role' => $role]);
+chatbot_json(['success' => true, 'message' => $response, 'role' => $role, 'buttons' => $buttons]);

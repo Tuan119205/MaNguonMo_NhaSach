@@ -58,6 +58,32 @@
       .admin-page-content { width: 100%; max-width: none; margin: 0; padding: 0; }
       body:has(.admin-page-content) { margin: 0; padding: 0; overflow-x: hidden; }
       body:has(.admin-page-content) > #pageContent { min-height: 100vh; }
+
+      /* Giao diện sáng hơn cho khách và người dùng, không áp dụng cho trang Admin */
+      body:not(:has(.admin-page-content)) { background: #f5f8ff; color: #26364d; }
+      body:not(:has(.admin-page-content)) #pageContent { background: #f5f8ff; }
+      body:not(:has(.admin-page-content)) .container,
+      body:not(:has(.admin-page-content)) .container-fluid { border-color: #c5d9f2; }
+      body:not(:has(.admin-page-content)) .card,
+      body:not(:has(.admin-page-content)) .book-card,
+      body:not(:has(.admin-page-content)) .book-item,
+      body:not(:has(.admin-page-content)) .list-group,
+      body:not(:has(.admin-page-content)) .table-responsive { border: 1px solid #b8d3f2; border-radius: 12px; background: #ffffff; box-shadow: 0 4px 14px rgba(83, 125, 180, .08); }
+      body:not(:has(.admin-page-content)) .card-header,
+      body:not(:has(.admin-page-content)) .table thead,
+      body:not(:has(.admin-page-content)) .list-group-item:first-child { background: #eaf3ff; border-color: #b8d3f2; }
+      body:not(:has(.admin-page-content)) .card-body,
+      body:not(:has(.admin-page-content)) .list-group-item { border-color: #d4e4f7; }
+      body:not(:has(.admin-page-content)) .form-control,
+      body:not(:has(.admin-page-content)) .form-select,
+      body:not(:has(.admin-page-content)) textarea { border-color: #a9c9ed; background: #ffffff; }
+      body:not(:has(.admin-page-content)) .form-control:focus,
+      body:not(:has(.admin-page-content)) .form-select:focus,
+      body:not(:has(.admin-page-content)) textarea:focus { border-color: #6ea7df; box-shadow: 0 0 0 3px rgba(110, 167, 223, .16); }
+      body:not(:has(.admin-page-content)) .btn-outline-primary,
+      body:not(:has(.admin-page-content)) .btn-outline-secondary { border-color: #8db9e8; }
+      body:not(:has(.admin-page-content)) .breadcrumb { background: #edf5ff; border: 1px solid #c2daf3; border-radius: 8px; padding: 8px 12px; }
+      body:not(:has(.admin-page-content)) .navbar { border-bottom: 1px solid #d6a72c; box-shadow: 0 3px 10px rgba(132, 102, 20, .12); }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/js/all.min.js" integrity="sha512-6PM0qYu5KExuNcKt5bURAoT6KCThUmHRewN3zUFNaoI6Di7XJPTMoT6K0nsagZKk2OB4L7E3q1uQKHNHd4stIQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

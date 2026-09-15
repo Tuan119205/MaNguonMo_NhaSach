@@ -81,22 +81,16 @@
     }
   }
 
-  // Get all addresses
-  $getAddressesQuery = "SELECT * FROM user_addresses WHERE userid = $userid ORDER BY is_default DESC, created_at DESC";
-  $addressesResult = mysqli_query($conn, $getAddressesQuery);
-  if ($addressesResult) {
-    while ($addr = mysqli_fetch_assoc($addressesResult)) {
-      $addresses[] = $addr;
-    }
-  }
-
   // Handle delete address
   if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_address'])) {
     $address_id = intval($_POST['address_id']);
     $deleteQuery = "DELETE FROM user_addresses WHERE address_id = $address_id AND userid = $userid";
     if (mysqli_query($conn, $deleteQuery)) {
+      $hasDefault = mysqli_query($conn, "SELECT address_id FROM user_addresses WHERE userid = $userid AND is_default = 1 LIMIT 1");
+      if ($hasDefault && mysqli_num_rows($hasDefault) === 0) {
+        mysqli_query($conn, "UPDATE user_addresses SET is_default = 1 WHERE userid = $userid ORDER BY created_at DESC LIMIT 1");
+      }
       $success = 'Xóa địa chỉ thành công.';
-      header("Refresh:1; url=delivery_management.php");
     } else {
       $error = 'Xóa địa chỉ thất bại.';
     }
@@ -127,8 +121,11 @@
       $postal_code = mysqli_real_escape_string($conn, $postal_code);
       $country = mysqli_real_escape_string($conn, $country);
 
-      if ($is_default) {
+      $addressCountResult = mysqli_query($conn, "SELECT COUNT(*) AS total FROM user_addresses WHERE userid = $userid");
+      $isFirstAddress = $addressCountResult && (int)mysqli_fetch_assoc($addressCountResult)['total'] === 0;
+      if ($is_default || $isFirstAddress) {
         mysqli_query($conn, "UPDATE user_addresses SET is_default = 0 WHERE userid = $userid");
+        $is_default = 1;
       }
 
       if ($address_id > 0) {
@@ -159,6 +156,15 @@
           $error = 'Thêm địa chỉ thất bại: ' . htmlspecialchars(mysqli_error($conn));
         }
       }
+    }
+  }
+
+  // Reload after mutations so the list always reflects the latest saved data.
+  $getAddressesQuery = "SELECT * FROM user_addresses WHERE userid = $userid ORDER BY is_default DESC, created_at DESC";
+  $addressesResult = mysqli_query($conn, $getAddressesQuery);
+  if ($addressesResult) {
+    while ($addr = mysqli_fetch_assoc($addressesResult)) {
+      $addresses[] = $addr;
     }
   }
 

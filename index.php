@@ -121,38 +121,6 @@
   });
 </script>
 
-<!-- Features Section -->
-<div class="features-section">
-  <div class="feature-card">
-    <div class="feature-icon">
-      <i class="fas fa-shipping-fast"></i>
-    </div>
-    <h3>Miễn Phí Vận Chuyển</h3>
-    <p>Vận chuyển miễn phí và hoàn trả miễn phí cho tất cả đơn hàng</p>
-  </div>
-  <div class="feature-card">
-    <div class="feature-icon">
-      <i class="fas fa-undo"></i>
-    </div>
-    <h3>Hoàn Trả Trong 30 Ngày</h3>
-    <p>Trả lại sản phẩm trong vòng 30 ngày để nhận hoàn tiền đầy đủ</p>
-  </div>
-  <div class="feature-card">
-    <div class="feature-icon">
-      <i class="fas fa-lock"></i>
-    </div>
-    <h3>Thanh Toán An Toàn</h3>
-    <p>Trải nghiệm sự yên tâm với hệ thống thanh toán an toàn của chúng tôi</p>
-  </div>
-  <div class="feature-card">
-    <div class="feature-icon">
-      <i class="fas fa-headset"></i>
-    </div>
-    <h3>Hỗ Trợ 24/7</h3>
-    <p>Đội hỗ trợ chuyên dụng của chúng tôi luôn sẵn sàng giúp đỡ</p>
-  </div>
-</div>
-
 <!-- Main Content with Sidebar -->
 <div class="homepage-content">
   <div class="row">
@@ -183,7 +151,7 @@
         <div class="row">
           <?php foreach(array_slice(array_filter($row), 0, 8) as $book) {
           ?>
-            <div class="col-lg-3 col-md-4 col-sm-6 col-xs-12 py-3 mb-4">
+            <div class="col-lg-3 col-md-4 col-sm-6 col-xs-12 py-3 mb-4" style="padding-left:12px;padding-right:12px;">
               <a href="book.php?bookisbn=<?php echo $book['book_isbn']; ?>" class="book-card text-reset text-decoration-none">
                 <div class="book-cover-wrapper">
                   <img class="book-cover" src="./bootstrap/img/<?php echo $book['book_image']; ?>" alt="<?php echo htmlspecialchars($book['book_title']); ?>">
@@ -200,10 +168,6 @@
         </div>
       </div>
 
-      <!-- Load More Section -->
-      <div class="load-more-section">
-        <a href="books.php" class="btn btn-load-more">Xem Tất Cả Sách</a>
-      </div>
     </div>
   </div>
 </div>
@@ -363,6 +327,10 @@
   .feature-card {
     text-align: center;
     padding: 30px;
+    background: #fff;
+    border: 2px solid #c5cfdd;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(23, 32, 51, 0.06);
   }
 
   .feature-icon {
@@ -385,10 +353,12 @@
 
   /* Sidebar */
   .sidebar {
-    background: #f8f9fa;
+    background: #fff;
     padding: 25px;
-    border-radius: 8px;
+    border: 2px solid #c5cfdd;
+    border-radius: 12px;
     margin-bottom: 30px;
+    box-shadow: 0 4px 12px rgba(23, 32, 51, 0.06);
   }
 
   .sidebar-title {
@@ -444,7 +414,7 @@
 
   /* Best Sellers */
   .best-sellers-section {
-    margin-bottom: 50px;
+    margin-bottom: 20px;
   }
 
   .section-title {
@@ -460,6 +430,10 @@
     color: #666;
     margin-bottom: 40px;
     font-size: 0.95rem;
+  }
+
+  .best-sellers-section .row {
+    row-gap: 0px;
   }
 
   .book-card {
@@ -524,9 +498,11 @@
 
   .book-info {
     padding: 10px 0;
+    min-height: 62px;
   }
 
   .book-title {
+    text-align: center;
     font-weight: 600;
     color: #222;
     font-size: 1rem;

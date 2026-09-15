@@ -70,7 +70,7 @@
     <div class="alert alert-warning text-center">Không tìm thấy sách nào phù hợp với từ khóa "<?php echo htmlspecialchars($searchTerm); ?>".</div>
   <?php else: ?>
     <?php for($i = 0; $i < mysqli_num_rows($result); $i++){ ?>
-      <div class="row g-4">
+      <div class="row g-4 book-grid-row">
         <?php while($book = mysqli_fetch_assoc($result)){ ?>
           <?php
             $price = isset($book['book_price']) ? (float) $book['book_price'] : 0;
@@ -127,8 +127,10 @@
   .book-filter-bar label { margin: 0; font-weight: 700; color: #374151; }
   .book-filter-bar select { min-width: 250px; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; color: #374151; }
   @media (max-width: 576px) { .book-filter-bar { align-items: stretch; flex-direction: column; } .book-filter-bar select { width: 100%; } }
+  .book-grid-row { margin-bottom: 22px; }
   .book-card {
     display: block;
+    margin-bottom: 14px;
     background: #fff;
     border: 1px solid rgba(0,0,0,0.06);
     border-radius: 18px;
@@ -201,10 +203,12 @@
     border-radius: 999px;
     margin-bottom: 10px;
     letter-spacing: 0.03em;
+    text-align: center;
   }
 
   .book-card-title {
     margin: 0 0 8px;
+    text-align: center;
     font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.35;
@@ -213,6 +217,7 @@
   }
 
   .book-card-author {
+    text-align: center;
     color: #6b7280;
     font-size: 0.9rem;
     line-height: 1.5;
