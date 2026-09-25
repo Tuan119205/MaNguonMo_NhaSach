@@ -1,0 +1,445 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fb;
+    color: #333;
+}
+
+
+/* ================= HEADER ================= */
+
+.header {
+    height: 70px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 7%;
+    border-bottom: 1px solid #eee;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    color: #4f5bd5;
+}
+
+.logo span {
+    font-size: 28px;
+}
+
+nav {
+    display: flex;
+    gap: 30px;
+}
+
+nav a {
+    text-decoration: none;
+    color: #444;
+    font-size: 15px;
+}
+
+nav a:hover {
+    color: #4f5bd5;
+}
+
+
+/* ================= BANNER ================= */
+
+.student-banner {
+    background: linear-gradient(120deg, #5865e8, #20b8d5);
+    color: white;
+
+    min-height: 260px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 40px 10%;
+}
+
+.student-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    opacity: 0.9;
+}
+
+.student-info h1 {
+    font-size: 38px;
+    margin-bottom: 18px;
+}
+
+.student-info p {
+    margin: 7px 0;
+    font-size: 16px;
+}
+
+
+/* THẺ THÔNG TIN */
+
+.student-card {
+    width: 240px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+
+    border-radius: 18px;
+    padding: 25px;
+
+    text-align: center;
+}
+
+.avatar {
+    width: 90px;
+    height: 90px;
+
+    margin: auto;
+    margin-bottom: 15px;
+
+    background: white;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 45px;
+}
+
+.student-card h3 {
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+.student-card span {
+    font-size: 13px;
+}
+
+
+/* ================= MAIN ================= */
+
+.container {
+    width: 94%;
+    max-width: 1400px;
+
+    margin: 30px auto;
+
+    display: grid;
+    grid-template-columns: 250px 1fr;
+
+    gap: 25px;
+}
+
+
+/* ================= SIDEBAR ================= */
+
+.sidebar {
+    background: white;
+    border-radius: 12px;
+    padding: 22px;
+
+    height: fit-content;
+
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.sidebar h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+
+    color: #444;
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.menu a {
+    text-decoration: none;
+    color: #555;
+
+    padding: 13px 15px;
+
+    border-radius: 8px;
+
+    transition: 0.2s;
+}
+
+.menu a span {
+    color: #777;
+    margin-right: 8px;
+}
+
+.menu a:hover {
+    background: #f0f2ff;
+    color: #4f5bd5;
+}
+
+.menu a.active {
+    background: #eef0ff;
+    color: #4f5bd5;
+    font-weight: bold;
+
+    border-left: 4px solid #4f5bd5;
+}
+
+
+/* ================= CONTENT ================= */
+
+.content {
+    background: white;
+
+    min-height: 500px;
+
+    border-radius: 12px;
+
+    padding: 30px;
+
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.content h1,
+.content h2 {
+    color: #3f4fc5;
+    margin-bottom: 20px;
+}
+
+.content p {
+    line-height: 1.7;
+}
+
+
+/* ================= FOOTER ================= */
+
+footer {
+    text-align: center;
+
+    padding: 25px;
+
+    color: #777;
+
+    font-size: 14px;
+}
+
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 800px) {
+
+    .header {
+        flex-direction: column;
+        height: auto;
+        gap: 15px;
+        padding: 20px;
+    }
+
+    nav {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .student-banner {
+        flex-direction: column;
+        text-align: center;
+        gap: 25px;
+    }
+
+    .student-info h1 {
+        font-size: 30px;
+    }
+
+    .container {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+}
+
+/* ================= FORM BÀI TẬP ================= */
+
+.content form {
+    margin-top: 20px;
+}
+
+.content label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 7px;
+    font-weight: bold;
+}
+
+.content input {
+    width: 100%;
+    max-width: 500px;
+    padding: 11px 13px;
+
+    border: 1px solid #ddd;
+    border-radius: 7px;
+
+    font-size: 15px;
+}
+
+.content input:focus {
+    outline: none;
+    border-color: #5865e8;
+}
+
+.content button {
+    margin-top: 20px;
+
+    padding: 11px 20px;
+
+    border: none;
+    border-radius: 7px;
+
+    background: #5865e8;
+    color: white;
+
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.content button:hover {
+    background: #4652c8;
+}
+
+
+/* ================= THÔNG BÁO ================= */
+
+.error {
+    margin-top: 20px;
+    padding: 12px 15px;
+
+    background: #ffecec;
+    border-left: 4px solid #e74c3c;
+
+    color: #c0392b;
+}
+
+.success {
+    margin-top: 20px;
+    padding: 12px 15px;
+
+    background: #ecf9f0;
+    border-left: 4px solid #2ecc71;
+
+    color: #218c4b;
+}
+
+
+/* ================= RESULT ================= */
+
+.result-box {
+    margin-top: 25px;
+
+    padding: 20px;
+
+    background: #f7f8ff;
+
+    border-radius: 10px;
+
+    border: 1px solid #e4e6ff;
+}
+
+.result-box h2 {
+    margin-bottom: 15px;
+}
+
+
+/* ================= BÀI 5 ================= */
+
+.number-grid {
+    display: grid;
+
+    grid-template-columns: repeat(2, 1fr);
+
+    gap: 15px;
+
+    max-width: 700px;
+}
+
+.number-grid label {
+    margin-top: 0;
+}
+
+
+/* ================= BÀI 6 ================= */
+
+.time-result {
+    font-size: 36px;
+    font-weight: bold;
+
+    color: #5865e8;
+
+    letter-spacing: 3px;
+}
+
+
+/* ================= BÀI 7 ================= */
+
+.student-result {
+    margin-top: 30px;
+
+    max-width: 650px;
+
+    padding: 25px;
+
+    background: #f7f8ff;
+
+    border-radius: 12px;
+
+    border: 1px solid #e2e5ff;
+}
+
+.student-result h2 {
+    margin-bottom: 20px;
+}
+
+.info-row {
+    display: flex;
+
+    padding: 13px 0;
+
+    border-bottom: 1px solid #ddd;
+}
+
+.info-row strong {
+    width: 130px;
+}
+
+.info-row span {
+    flex: 1;
+}
+
+
+
+/* Xuong dong so  */
+.factorial-result {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f5f7ff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+
+    line-height: 1.7;
+}

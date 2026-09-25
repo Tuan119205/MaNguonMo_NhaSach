@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Web Học Tập </title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+
+<header class="header">
+
+    <div class="logo">
+        <span>💻</span>
+        <strong>WEB HỌC TẬP</strong>
+    </div>
+
+    <nav>
+        <a href="https://www.w3schools.com/cpp/default.asp">C/C++</a>
+        <a href="https://www.w3schools.com/php/default.asp">PHP</a>
+        <a href="https://www.w3schools.com/html/default.asp">HTML</a>
+        <a href="https://www.w3schools.com/js/default.asp">JavaScript</a>
+    </nav>
+
+</header>
+
+
+<!-- ================= BANNER SINH VIÊN ================= -->
+
+<section class="student-banner">
+
+    <div class="student-info">
+
+        <div class="student-title">
+            👨‍🎓 THÔNG TIN SINH VIÊN
+        </div>
+
+        <h1>Trần Công Tuấn</h1>
+
+        <p>
+            <b>Trường:</b>
+            Đại học Giao thông Vận tải
+        </p>
+
+        <p>
+            <b>Ngành:</b>
+            Công nghệ thông tin
+        </p>
+
+        <p>
+            <b>Nội dung:</b>
+            Bài tập thực hành PHP
+        </p>
+
+    </div>
+
+
+    <div class="student-card">
+
+        <div class="avatar">
+            👨‍💻
+        </div>
+
+        <h3>TRẦN CÔNG TUẤN</h3>
+
+        <span>Sinh viên CNTT</span>
+
+    </div>
+
+</section>
+
+
+<!-- ================= MAIN ================= -->
+
+<div class="container">
+
+
+    <!-- SIDEBAR -->
+
+    <aside class="sidebar">
+
+        <h2>💻 Bài tập PHP.</h2>
+
+        <div class="menu">
+
+            <a href="#" onclick="loadBai(1); return false;" id="bai1">
+                <span>●</span>
+                Bài tập 1
+            </a>
+
+            <a href="#" onclick="loadBai(2); return false;" id="bai2">
+                <span>●</span>
+                Bài tập 2
+            </a>
+
+            <a href="#" onclick="loadBai(3); return false;" id="bai3">
+                <span>●</span>
+                Bài tập 3
+            </a>
+
+            <a href="#" onclick="loadBai(4); return false;" id="bai4">
+                <span>●</span>
+                Bài tập 4
+            </a>
+
+            <a href="#" onclick="loadBai(5); return false;" id="bai5">
+                <span>●</span>
+                Bài tập 5
+            </a>
+
+            <a href="#" onclick="loadBai(6); return false;" id="bai6">
+                <span>●</span>
+                Bài tập 6
+            </a>
+
+            <a href="#" onclick="loadBai(7); return false;" id="bai7">
+                <span>●</span>
+                Bài tập 7
+            </a>
+
+        </div>
+
+    </aside>
+
+
+    <!-- CONTENT -->
+
+    <main class="content" id="content">
+
+        <div class="welcome">
+
+            <h1>📚 Web Học Tập PHP</h1>
+
+            <p>
+                Chào mừng bạn đến với website bài tập thực hành PHP.
+            </p>
+
+            <p>
+                Hãy chọn một bài tập ở menu bên trái để bắt đầu.
+            </p>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<!-- ================= FOOTER ================= -->
+
+<footer>
+
+    © 2026 - Trần Công Tuấn | Web học tập PHP
+
+</footer>
+
+
+<!-- ================= JAVASCRIPT ================= -->
+
+<script>
+
+async function loadBai(number) {
+
+    const content = document.getElementById("content");
+
+    // Hiệu ứng đang tải
+    content.innerHTML = `
+        <div class="loading">
+            ⏳ Đang tải bài tập ${number}...
+        </div>
+    `;
+
+
+    // Xóa trạng thái active
+    document.querySelectorAll(".menu a").forEach(function(link) {
+        link.classList.remove("active");
+    });
+
+
+    // Active bài đang chọn
+    const current = document.getElementById("bai" + number);
+
+    if (current) {
+        current.classList.add("active");
+    }
+
+
+    try {
+
+        const response = await fetch("bai" + number + ".php");
+
+        if (!response.ok) {
+            throw new Error("Không tìm thấy file");
+        }
+
+        const html = await response.text();
+
+        content.innerHTML = html;
+
+
+        // Xử lý form trong file PHP
+        setupForm();
+
+
+    } catch (error) {
+
+        content.innerHTML = `
+            <div class="error">
+                <h2>❌ Không thể tải bài tập</h2>
+
+                <p>
+                    Kiểm tra file bai${number}.php
+                </p>
+            </div>
+        `;
+
+    }
+
+}
+
+
+/*
+    Xử lý form của các bài PHP
+    để khi bấm nút không bị chuyển sang trang PHP riêng.
+*/
+
+function setupForm() {
+
+    const form = document.querySelector("#content form");
+
+    if (!form) {
+        return;
+    }
+
+
+    form.addEventListener("submit", async function(event) {
+
+        event.preventDefault();
+
+
+        const formData = new FormData(form);
+
+        const action = form.getAttribute("action") || form.dataset.action || "";
+
+
+        // Nếu không có action thì xác định file hiện tại
+        let file = action;
+
+        if (!file) {
+
+            const active = document.querySelector(".menu a.active");
+
+            if (active) {
+
+                const id = active.id.replace("bai", "");
+
+                file = "bai" + id + ".php";
+
+            }
+
+        }
+
+
+        try {
+
+            const response = await fetch(file, {
+
+                method: "POST",
+
+                body: formData
+
+            });
+
+
+            const html = await response.text();
+
+            document.getElementById("content").innerHTML = html;
+
+
+            // Tiếp tục xử lý form nếu có
+            setupForm();
+
+
+        } catch (error) {
+
+            document.getElementById("content").innerHTML = `
+                <div class="error">
+                    Có lỗi xảy ra khi xử lý dữ liệu.
+                </div>
+            `;
+
+        }
+
+    });
+
+}
+
+
+// Mặc định mở bài 1
+loadBai(1);
+
+</script>
+
+</body>
+
+</html>
